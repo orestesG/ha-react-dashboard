@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm *)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); td=data.get\\('packages',{}\\).get\\('node_modules/tailwindcss',{}\\); print\\('tailwind version:', td.get\\('version','not found'\\)\\)\")"
+    ]
+  }
+}
