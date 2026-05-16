@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-primary: #f8fafc;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-border: #e2e8f0;
+  }
+  .dark {
+    --color-bg-primary: #0a0a0a;
+    --color-bg-secondary: #171717;
+    --color-bg-tertiary: #262626;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #9ca3af;
+    --color-border: #262626;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
