@@ -30,8 +30,8 @@ export function Cocina() {
       name="Cocina"
       icon={CookingPot}
       iconColor="accent-orange"
-      tempEntityId="sensor.living_room_sensor_temperature"
-      humidityEntityId="sensor.living_room_sensor_humidity"
+      tempEntityId="sensor.sonoff_snzb_02d_temperature"
+      humidityEntityId="sensor.sonoff_snzb_02d_humidity"
     >
       <SwitchTile entityId="switch.sonoff_10027c9f9d_1" name="Luz" />
       <LeakSensor

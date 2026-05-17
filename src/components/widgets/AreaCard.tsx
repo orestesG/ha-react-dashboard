@@ -38,8 +38,8 @@ export function AreaCard({
   const humValue = humidityEntityId ? humEntityResult.entity?.state : undefined;
 
   return (
-    <div className="bg-bg-secondary rounded-2xl border border-border-main overflow-hidden">
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+    <div className="h-full flex flex-col bg-bg-secondary rounded-2xl border border-border-main overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
         <div className="flex items-center gap-2">
           <span className={iconColorMap[iconColor] ?? "text-accent-blue"}>
             {createElement(icon, { size: 20 })}
@@ -65,7 +65,7 @@ export function AreaCard({
           )}
         </div>
       </div>
-      <div className="px-5 pb-4 space-y-2">
+      <div className="px-5 pb-4 space-y-2 flex-1 overflow-y-auto">
         {children}
       </div>
     </div>
