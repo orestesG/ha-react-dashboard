@@ -96,15 +96,3 @@ Navegar a `http://homeassistant.local:8123/mi-dashboard` o hacer clic en "Dashbo
 
 **Para actualizaciones posteriores:** reemplazar `main.js` en HA y hacer Ctrl+Shift+R en el browser. No hace falta reiniciar HA.
 
----
-
-## Configuración de opencode (MCP)
-
-Si usás [opencode](https://opencode.ai) para desarrollo con el servidor MCP de HA:
-
-```bash
-cp opencode.json.example opencode.json
-# Editar opencode.json con tu token real
-```
-
-`opencode.json` está en `.gitignore` para que el token no se suba accidentalmente.
