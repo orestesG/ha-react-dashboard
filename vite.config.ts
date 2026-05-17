@@ -10,6 +10,9 @@ export default defineConfig({
     ...(isPanel ? [cssInjectedByJs()] : []),
   ],
   ...(isPanel && {
+    define: {
+      'process.env.NODE_ENV': '"production"',
+    },
     build: {
       lib: {
         entry: 'src/panel-main.ts',
