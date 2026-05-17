@@ -1,5 +1,10 @@
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
+import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout'
+import type { Layouts } from 'react-grid-layout'
 import { useHA } from "./hooks/useHA";
 import { useHAStore } from "./store/ha-store";
+import { useLayoutStore } from "./store/layout-store";
 import { Living } from "./areas/Living";
 import { Cocina } from "./areas/Cocina";
 import { Oficina } from "./areas/Oficina";
@@ -12,7 +17,7 @@ import { EnergyChart } from "./components/widgets/EnergyChart";
 import { BatteryWidget } from "./components/widgets/BatteryWidget";
 import { SceneButtons } from "./components/widgets/SceneButtons";
 import { VacuumCard } from "./components/controls/VacuumCard";
-import { Sunrise, Moon } from "lucide-react";
+import { Sunrise, Moon, LayoutGrid, RotateCcw, Check } from "lucide-react";
 
 const HA_URL = import.meta.env.VITE_HA_URL || "";
 const HA_TOKEN = import.meta.env.VITE_HA_TOKEN || "";
@@ -24,7 +29,7 @@ const batterySensors = [
   { entityId: "sensor.curtain_3_c564_battery", name: "Cortina SwitchBot", area: "Cuarto" },
   { entityId: "sensor.vibration_sensor_battery", name: "Vibración", area: "Oficina" },
   { entityId: "sensor.sensor_movimiento_battery", name: "Movimiento", area: "Oficina" },
-  { entityId: "sensor.sonoff_snzb_02d_battery", name: "Temp-Humedad", area: "Oficina" },
+  { entityId: "sensor.sonoff_snzb_02d_battery", name: "Temp-Humedad", area: "Cocina" },
   { entityId: "sensor.ewelink_snzb_03p_battery", name: "Movimiento", area: "Pasillo" },
   { entityId: "sensor.xiaomi_c102gl_43cb_battery_level", name: "Robot Aspirador", area: "General" },
 ];
@@ -38,12 +43,27 @@ interface AppProps {
   panelMode?: boolean;
 }
 
+function GridItem({ editMode, children }: { editMode: boolean; children: React.ReactNode }) {
+  return (
+    <div className="relative h-full">
+      {editMode && (
+        <div className="absolute inset-0 z-10 rounded-2xl cursor-grab active:cursor-grabbing bg-accent-blue/5 border-2 border-dashed border-accent-blue/30" />
+      )}
+      <div className="h-full overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function App({ panelMode = false }: AppProps) {
   const { isConnected, error, entityCount } = useHA(
     panelMode ? undefined : HA_URL,
     panelMode ? undefined : HA_TOKEN,
   );
   const connect = useHAStore((s) => s.connect);
+  const { layouts, editMode, setLayouts, toggleEditMode, resetLayouts } = useLayoutStore();
+  const { width, containerRef } = useContainerWidth({ measureBeforeMount: true });
 
   if (!panelMode && (!HA_URL || !HA_TOKEN)) {
     return (
@@ -77,6 +97,29 @@ function App({ panelMode = false }: AppProps) {
         </div>
         <div className="flex items-center gap-3">
           <SceneButtons scenes={scenes} />
+
+          {/* Edit layout controls */}
+          {editMode && (
+            <button
+              onClick={resetLayouts}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-bg-secondary border border-border-main text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <RotateCcw size={13} />
+              Restablecer
+            </button>
+          )}
+          <button
+            onClick={toggleEditMode}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors ${
+              editMode
+                ? "bg-accent-blue text-white border-accent-blue"
+                : "bg-bg-secondary border-border-main text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            {editMode ? <Check size={13} /> : <LayoutGrid size={13} />}
+            {editMode ? "Listo" : "Editar"}
+          </button>
+
           <div className="flex items-center gap-2">
             {isConnected ? (
               <span className="flex items-center gap-1.5 text-xs text-accent-green">
@@ -110,28 +153,34 @@ function App({ panelMode = false }: AppProps) {
         </div>
       )}
 
-      <main className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Living />
-        <Cocina />
-        <Oficina />
-        <CuartoPrincipal />
-        <Bano />
-        <EntradaPasillo />
-        <Balcon />
-        <VacuumCard entityId="vacuum.xiaomi_c102gl_43cb_robot_cleaner" name="Robot" />
-      </main>
-
-      <section className="mt-4">
-        <WeatherWidget />
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        <EnergyChart />
-      </section>
-
-      <section className="mt-4">
-        <BatteryWidget sensors={batterySensors} />
-      </section>
+      <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
+        <ResponsiveGridLayout
+          width={width}
+          layouts={layouts}
+          breakpoints={{ lg: 1280, md: 768, sm: 0 }}
+          cols={{ lg: 4, md: 2, sm: 1 }}
+          rowHeight={100}
+          margin={[16, 16]}
+          containerPadding={[0, 0]}
+          isDraggable={editMode}
+          isResizable={editMode}
+          onLayoutChange={(_layout: unknown, allLayouts: Layouts) => setLayouts(allLayouts)}
+          resizeHandles={['se']}
+          useCSSTransforms
+        >
+          <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>
+          <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>
+          <div key="oficina"><GridItem editMode={editMode}><Oficina /></GridItem></div>
+          <div key="cuarto"><GridItem editMode={editMode}><CuartoPrincipal /></GridItem></div>
+          <div key="bano"><GridItem editMode={editMode}><Bano /></GridItem></div>
+          <div key="pasillo"><GridItem editMode={editMode}><EntradaPasillo /></GridItem></div>
+          <div key="balcon"><GridItem editMode={editMode}><Balcon /></GridItem></div>
+          <div key="vacuum"><GridItem editMode={editMode}><VacuumCard entityId="vacuum.xiaomi_c102gl_43cb_robot_cleaner" name="Robot" /></GridItem></div>
+          <div key="weather"><GridItem editMode={editMode}><WeatherWidget /></GridItem></div>
+          <div key="energy"><GridItem editMode={editMode}><EnergyChart /></GridItem></div>
+          <div key="battery"><GridItem editMode={editMode}><BatteryWidget sensors={batterySensors} /></GridItem></div>
+        </ResponsiveGridLayout>
+      </div>
     </div>
   );
 }
