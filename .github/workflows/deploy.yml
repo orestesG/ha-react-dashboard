@@ -6,14 +6,9 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -21,13 +16,6 @@ jobs:
       - name: Build panel
         run: npm run build:panel
 
-      - name: Deploy main.js to Home Assistant
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HA_HOST }}
-          username: root
-          key: ${{ secrets.HA_SSH_KEY }}
-          port: ${{ secrets.HA_SSH_PORT }}
-          source: dist/main.js
-          target: /config/www/mi-dashboard/
-          strip_components: 1
+      - name: Copy main.js to Home Assistant
+        run: |
+          scp -P ${{ secrets.HA_SSH_PORT }} -i ${{ secrets.HA_SSH_KEY_PATH }} -o StrictHostKeyChecking=no dist/main.js root@${{ secrets.HA_HOST }}:/config/www/mi-dashboard/main.js
