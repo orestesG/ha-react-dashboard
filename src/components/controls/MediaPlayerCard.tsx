@@ -1,7 +1,7 @@
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
-import { Play, Pause, SkipBack, SkipForward, Tv } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Tv, Power } from "lucide-react";
 
 interface MediaPlayerCardProps {
   entityId: string;
@@ -16,7 +16,18 @@ export function MediaPlayerCard({ entityId, name }: MediaPlayerCardProps) {
   const mediaTitle = entity?.attributes?.media_title as string | undefined;
   const mediaArtist = entity?.attributes?.media_artist as string | undefined;
   const isPlaying = state === "playing";
-  const isOff = state === "off" || state === "idle";
+  const isOff = state === "off" || state === "unavailable";
+
+  const togglePower = async () => {
+    if (!connection) return;
+    await callService(
+      connection,
+      "media_player",
+      isOff ? "turn_on" : "turn_off",
+      undefined,
+      { entity_id: entityId }
+    );
+  };
 
   const togglePlay = async () => {
     if (!connection) return;
@@ -35,48 +46,76 @@ export function MediaPlayerCard({ entityId, name }: MediaPlayerCardProps) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl p-5 bg-bg-tertiary animate-pulse space-y-3">
-        <div className="h-5 w-24 rounded bg-gray-600" />
-        <div className="h-4 w-40 rounded bg-gray-600" />
+      <div className="rounded-2xl p-4 bg-bg-tertiary animate-pulse space-y-3">
+        <div className="h-5 w-24 rounded-lg bg-bg-secondary" />
+        <div className="h-4 w-40 rounded-lg bg-bg-secondary" />
       </div>
     );
   }
 
   return (
-    <div className={`rounded-2xl p-4 ${isOff ? "bg-bg-tertiary/50" : "bg-bg-tertiary"}`}>
+    <div className={`rounded-2xl p-4 transition-colors ${isOff ? "bg-bg-secondary" : "bg-bg-tertiary"}`}>
+      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
-        <Tv size={20} className={isOff ? "text-text-secondary" : "text-accent-blue"} />
+        <Tv size={18} className={isOff ? "text-text-secondary" : "text-accent-blue"} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-primary truncate">{name}</p>
-          {mediaTitle && (
+          {!isOff && mediaTitle && (
             <p className="text-xs text-text-secondary truncate">
               {mediaTitle}{mediaArtist ? ` · ${mediaArtist}` : ""}
             </p>
           )}
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          isOff ? "bg-gray-700 text-text-secondary" :
-          isPlaying ? "bg-accent-green/20 text-accent-green" :
-          "bg-accent-yellow/20 text-accent-yellow"
+
+        {/* State badge */}
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+          isOff
+            ? "bg-bg-tertiary border-border-main text-text-secondary"
+            : isPlaying
+            ? "bg-accent-green/15 border-accent-green/30 text-accent-green"
+            : "bg-accent-yellow/15 border-accent-yellow/30 text-accent-yellow"
         }`}>
           {isOff ? "Off" : isPlaying ? "Playing" : "Paused"}
         </span>
+
+        {/* Power toggle */}
+        <button
+          onClick={togglePower}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+            isOff
+              ? "bg-accent-green/15 text-accent-green hover:bg-accent-green/25"
+              : "bg-accent-red/15 text-accent-red hover:bg-accent-red/25"
+          }`}
+        >
+          <Power size={15} />
+        </button>
       </div>
 
-      <div className="flex items-center justify-center gap-4">
-        <button onClick={prevTrack} className="text-text-secondary hover:text-text-primary transition-colors">
-          <SkipBack size={20} />
-        </button>
-        <button
-          onClick={togglePlay}
-          className="w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all active:scale-95"
-        >
-          {isPlaying ? <Pause size={22} /> : <Play size={22} />}
-        </button>
-        <button onClick={nextTrack} className="text-text-secondary hover:text-text-primary transition-colors">
-          <SkipForward size={20} />
-        </button>
-      </div>
+      {/* Media controls — only when active */}
+      {!isOff && (
+        <div className="flex items-center justify-center gap-4">
+          <button
+            onClick={prevTrack}
+            className="text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <SkipBack size={18} />
+          </button>
+
+          <button
+            onClick={togglePlay}
+            className="w-11 h-11 rounded-full bg-text-primary/10 hover:bg-text-primary/20 text-text-primary flex items-center justify-center transition-all active:scale-95"
+          >
+            {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+
+          <button
+            onClick={nextTrack}
+            className="text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <SkipForward size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
