@@ -98,54 +98,6 @@ Navegar a `http://homeassistant.local:8123/mi-dashboard` o hacer clic en "Dashbo
 
 ---
 
-## Auto-deploy con GitHub Actions
-
-Cada push a `main` construye el panel y lo sube automáticamente a HA via SSH.
-
-### Requisitos previos
-
-**1. Habilitar SSH en HA**
-
-Instalar el add-on **Terminal & SSH** desde HA → Settings → Add-ons → Add-on Store.
-
-En la configuración del add-on, agregar la clave pública SSH bajo `authorized_keys`.
-
-**2. Generar clave SSH para el workflow**
-
-```bash
-ssh-keygen -t ed25519 -C "github-actions-ha-deploy" -f ~/.ssh/ha_deploy
-# No poner passphrase (dejar vacío)
-```
-
-Esto genera dos archivos:
-- `ha_deploy` — clave privada (va a GitHub Secrets)
-- `ha_deploy.pub` — clave pública (va a HA)
-
-**3. Agregar la clave pública a HA**
-
-En HA → Settings → Add-ons → Terminal & SSH → Configuration:
-
-```yaml
-authorized_keys:
-  - ssh-ed25519 AAAA... github-actions-ha-deploy
-```
-
-**4. Configurar GitHub Secrets**
-
-En el repo de GitHub → Settings → Secrets and variables → Actions → New repository secret:
-
-| Secret | Valor |
-|--------|-------|
-| `HA_HOST` | IP local de HA, ej: `192.168.1.100` (no usar `homeassistant.local`) |
-| `HA_SSH_KEY` | Contenido completo del archivo `ha_deploy` (clave privada) |
-| `HA_SSH_PORT` | `22222` (HA OS) o `22` (instalación custom) |
-
-**5. Activar el workflow**
-
-El archivo `.github/workflows/deploy.yml` ya está incluido. Hacer un push a `main` para disparar el primer deploy automático.
-
----
-
 ## Configuración de opencode (MCP)
 
 Si usás [opencode](https://opencode.ai) para desarrollo con el servidor MCP de HA:
