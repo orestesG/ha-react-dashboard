@@ -272,9 +272,7 @@ function useWeatherForecast(
           target: { entity_id: entityId },
           return_response: true,
         });
-        console.log(`[WeatherWidget] get_forecasts (${type}) raw result:`, result);
         const entries: ForecastEntry[] = result?.response?.[entityId]?.forecast ?? [];
-        console.log(`[WeatherWidget] get_forecasts (${type}) entries (${entries.length}):`, entries.slice(0, 3));
         if (!cancelled && entries.length > 0) setForecast(entries);
       } catch (err) {
         console.error(`[WeatherWidget] get_forecasts (${type}) failed:`, err);
@@ -337,9 +335,6 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
   // Readable label: prefer explicit location, then friendly name, then format entity ID
   const entitySlug = entityId.split(".").pop()?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ?? entityId;
   const sourceLabel = locationName ?? friendlyName ?? entitySlug;
-
-  console.log("[WeatherWidget] entity attributes:", entity?.attributes);
-  console.log("[WeatherWidget] hourlyForecast length:", hourlyForecast.length, "| dailyForecast length:", dailyForecast.length);
 
   const attrForecast = (entity?.attributes?.forecast ?? []) as ForecastEntry[];
   const resolvedDaily = dailyForecast.length > 0 ? dailyForecast : attrForecast;

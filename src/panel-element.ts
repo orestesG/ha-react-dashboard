@@ -15,6 +15,16 @@ export class MiDashboardPanel extends HTMLElement {
   private _hasMounted = false;
 
   connectedCallback(): void {
+    // HA renders us inside ha-panel-custom's shadow DOM — styles in document.head
+    // don't cross that boundary, so inject them into the containing shadow root.
+    const hostRoot = this.getRootNode();
+    if (hostRoot instanceof ShadowRoot && !hostRoot.getElementById('mi-dash-styles')) {
+      const style = document.createElement('style');
+      style.id = 'mi-dash-styles';
+      style.textContent = (window as unknown as Record<string, string>).__dashCss ?? '';
+      hostRoot.appendChild(style);
+    }
+
     this._root = createRoot(this);
     this._root.render(
       createElement(StrictMode, null, createElement(App, { panelMode: true }))

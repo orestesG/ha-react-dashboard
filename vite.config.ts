@@ -7,11 +7,25 @@ const isPanel = process.env.VITE_BUILD_PANEL === 'true'
 export default defineConfig({
   plugins: [
     react(),
-    ...(isPanel ? [cssInjectedByJs()] : []),
+    ...(isPanel ? [cssInjectedByJs({
+      injectCode: (cssCode) => `
+        (function(){
+          try {
+            window.__dashCss = ${cssCode};
+            if (typeof document !== 'undefined') {
+              var el = document.createElement('style');
+              el.appendChild(document.createTextNode(${cssCode}));
+              document.head.appendChild(el);
+            }
+          } catch(e) { console.error('css-inject', e); }
+        })();
+      `,
+    })] : []),
   ],
   ...(isPanel && {
     define: {
       'process.env.NODE_ENV': '"production"',
+      'process': '{ env: { NODE_ENV: "production" } }',
     },
     build: {
       lib: {

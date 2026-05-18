@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import type { Layouts, Layout } from 'react-grid-layout'
+import type { ResponsiveLayouts, LayoutItem } from 'react-grid-layout'
 
 const LS_KEY = 'ha-dashboard-layout-v3'
 
-const DEFAULT_LG: Layout[] = [
+const DEFAULT_LG: LayoutItem[] = [
   { i: 'living',  x: 0, y: 0,  w: 1, h: 5 },
   { i: 'cocina',  x: 1, y: 0,  w: 1, h: 4 },
   { i: 'oficina', x: 2, y: 0,  w: 1, h: 6 },
@@ -17,7 +17,7 @@ const DEFAULT_LG: Layout[] = [
   { i: 'battery', x: 2, y: 11, w: 2, h: 5 },
 ]
 
-const DEFAULT_MD: Layout[] = [
+const DEFAULT_MD: LayoutItem[] = [
   { i: 'living',  x: 0, y: 0,  w: 1, h: 5 },
   { i: 'cocina',  x: 1, y: 0,  w: 1, h: 4 },
   { i: 'oficina', x: 0, y: 5,  w: 1, h: 6 },
@@ -31,23 +31,23 @@ const DEFAULT_MD: Layout[] = [
   { i: 'battery', x: 1, y: 18, w: 1, h: 5 },
 ]
 
-const DEFAULT_SM: Layout[] = DEFAULT_LG.map((item, idx) => ({
+const DEFAULT_SM: LayoutItem[] = DEFAULT_LG.map((item, idx) => ({
   ...item,
   x: 0,
   y: idx * 4,
   w: 1,
 }))
 
-export const DEFAULT_LAYOUTS: Layouts = {
+export const DEFAULT_LAYOUTS: ResponsiveLayouts = {
   lg: DEFAULT_LG,
   md: DEFAULT_MD,
   sm: DEFAULT_SM,
 }
 
-function loadLayouts(): Layouts {
+function loadLayouts(): ResponsiveLayouts {
   try {
     const raw = localStorage.getItem(LS_KEY)
-    if (raw) return JSON.parse(raw) as Layouts
+    if (raw) return JSON.parse(raw) as ResponsiveLayouts
   } catch {
     // ignore
   }
@@ -55,9 +55,9 @@ function loadLayouts(): Layouts {
 }
 
 interface LayoutState {
-  layouts: Layouts
+  layouts: ResponsiveLayouts
   editMode: boolean
-  setLayouts: (l: Layouts) => void
+  setLayouts: (l: ResponsiveLayouts) => void
   toggleEditMode: () => void
   resetLayouts: () => void
 }

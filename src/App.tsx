@@ -1,7 +1,7 @@
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout'
-import type { Layouts } from 'react-grid-layout'
+import type { ResponsiveLayouts } from 'react-grid-layout'
 import { useHA } from "./hooks/useHA";
 import { useHAStore } from "./store/ha-store";
 import { useLayoutStore } from "./store/layout-store";
@@ -162,11 +162,9 @@ function App({ panelMode = false }: AppProps) {
           rowHeight={100}
           margin={[16, 16]}
           containerPadding={[0, 0]}
-          isDraggable={editMode}
-          isResizable={editMode}
-          onLayoutChange={(_layout: unknown, allLayouts: Layouts) => setLayouts(allLayouts)}
-          resizeHandles={['se']}
-          useCSSTransforms
+          dragConfig={{ enabled: editMode }}
+          resizeConfig={{ enabled: editMode, handles: ['se'] as const }}
+          onLayoutChange={(_layout: unknown, allLayouts: ResponsiveLayouts) => setLayouts(allLayouts)}
         >
           <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>
           <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>
