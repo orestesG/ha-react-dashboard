@@ -1,5 +1,5 @@
 import { createRoot, type Root } from 'react-dom/client';
-import { createElement, StrictMode } from 'react';
+import { createElement, StrictMode, Component, type ReactNode } from 'react';
 import { useHAStore } from './store/ha-store';
 import App from './App';
 import type { Connection } from 'home-assistant-js-websocket';
@@ -7,6 +7,25 @@ import type { Connection } from 'home-assistant-js-websocket';
 interface HassObject {
   connection: Connection;
   themes: { darkMode: boolean };
+}
+
+// Prevents a single component crash from blanking the whole panel
+class PanelErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return createElement('div', {
+        style: { padding: '24px', fontFamily: 'sans-serif', color: '#f87171' }
+      }, `Dashboard error: ${this.state.error.message}`);
+    }
+    return this.props.children;
+  }
 }
 
 export class MiDashboardPanel extends HTMLElement {
@@ -27,7 +46,11 @@ export class MiDashboardPanel extends HTMLElement {
 
     this._root = createRoot(this);
     this._root.render(
-      createElement(StrictMode, null, createElement(App, { panelMode: true }))
+      createElement(StrictMode, null,
+        createElement(PanelErrorBoundary, null,
+          createElement(App, { panelMode: true })
+        )
+      )
     );
     this._hasMounted = true;
     if (this._hass) this._applyHass(this._hass);
@@ -51,6 +74,7 @@ export class MiDashboardPanel extends HTMLElement {
   private _applyHass(hass: HassObject): void {
     this._applyDarkMode(hass.themes.darkMode);
     useHAStore.getState().injectConnection(hass.connection);
+    // syncFromHA is triggered by App.tsx via useEffect on connection change
   }
 
   private _applyDarkMode(dark: boolean): void {

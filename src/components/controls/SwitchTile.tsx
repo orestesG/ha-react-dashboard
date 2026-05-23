@@ -1,5 +1,6 @@
 import { useEntity } from "../../hooks/useEntity";
 import { Tile } from "../ui/Tile";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { Power } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -22,13 +23,16 @@ export function SwitchTile({ entityId, name, icon: Icon = Power }: SwitchTilePro
   }
 
   return (
-    <Tile
-      icon={<Icon size={20} />}
-      name={name}
-      state={isOn ? "Encendido" : "Apagado"}
-      active={isOn}
-      color={isOn ? "accent-green" : "accent-blue"}
-      onClick={toggle}
-    />
+    <div className="relative">
+      <Tile
+        icon={<Icon size={20} />}
+        name={name}
+        state={isOn ? "Encendido" : "Apagado"}
+        active={isOn}
+        color={isOn ? "accent-green" : "accent-blue"}
+        onClick={toggle}
+      />
+      <FavoriteStar entityId={entityId} className="absolute top-2 right-2 z-10" />
+    </div>
   );
 }

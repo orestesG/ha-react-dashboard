@@ -3,6 +3,7 @@ import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { Tile } from "../ui/Tile";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { Lightbulb, Sun, Moon, Palette } from "lucide-react";
 
 interface LightTileProps {
@@ -136,14 +137,17 @@ export function LightTile({ entityId, name }: LightTileProps) {
 
   return (
     <>
-      <Tile
-        icon={<Lightbulb size={20} />}
-        name={name}
-        state={isOn ? `${brightnessPct}%` : "Apagado"}
-        active={isOn}
-        color={isOn ? "accent-yellow" : "accent-blue"}
-        onClick={handleTileClick}
-      />
+      <div className="relative">
+        <Tile
+          icon={<Lightbulb size={20} />}
+          name={name}
+          state={isOn ? `${brightnessPct}%` : "Apagado"}
+          active={isOn}
+          color={isOn ? "accent-yellow" : "accent-blue"}
+          onClick={handleTileClick}
+        />
+        <FavoriteStar entityId={entityId} className="absolute top-2 right-2 z-10" />
+      </div>
       {controlsVisible && (
         <div className="bg-bg-tertiary rounded-b-xl px-4 py-3 -mt-1 space-y-3">
           <div className="flex items-center gap-2">

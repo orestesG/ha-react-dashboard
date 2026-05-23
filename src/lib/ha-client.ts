@@ -14,6 +14,12 @@ import {
 let connection: Connection | null = null;
 let auth: Auth | null = null;
 
+const _callListeners: Array<(entityId: string) => void> = [];
+
+export function addServiceCallListener(fn: (entityId: string) => void): void {
+  _callListeners.push(fn);
+}
+
 export async function connectHA(url: string, token: string): Promise<Connection> {
   if (connection) {
     return connection;
@@ -50,13 +56,11 @@ export async function callService(
   serviceData?: Record<string, unknown>,
   target?: { entity_id?: string | string[] }
 ): Promise<void> {
-  await wsCallService(
-    conn,
-    domain,
-    service,
-    serviceData,
-    target ?? undefined
-  );
+  await wsCallService(conn, domain, service, serviceData, target ?? undefined);
+  if (target?.entity_id) {
+    const ids = Array.isArray(target.entity_id) ? target.entity_id : [target.entity_id];
+    ids.forEach((id) => _callListeners.forEach((fn) => fn(id)));
+  }
 }
 
 export async function fetchAllStates(conn: Connection): Promise<HassEntity[]> {

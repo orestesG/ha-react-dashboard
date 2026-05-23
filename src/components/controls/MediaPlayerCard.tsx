@@ -1,6 +1,7 @@
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { Play, Pause, SkipBack, SkipForward, Tv, Power } from "lucide-react";
 
 interface MediaPlayerCardProps {
@@ -77,6 +78,8 @@ export function MediaPlayerCard({ entityId, name }: MediaPlayerCardProps) {
         }`}>
           {isOff ? "Off" : isPlaying ? "Playing" : "Paused"}
         </span>
+
+        <FavoriteStar entityId={entityId} />
 
         {/* Power toggle */}
         <button

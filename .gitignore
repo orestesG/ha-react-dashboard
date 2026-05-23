@@ -31,3 +31,6 @@ opencode.json
 # Dev planning docs
 plan-dashboard-react.md
 dnd-experiment-plan.md
+
+# Personal dashboard configuration (entity IDs, names)
+src/dashboard.config.ts

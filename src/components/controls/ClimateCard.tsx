@@ -1,6 +1,7 @@
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { Thermometer, Plus, Minus } from "lucide-react";
 
 interface ClimateCardProps {
@@ -54,9 +55,12 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
           <Thermometer size={18} className={isOff ? "text-text-secondary" : "text-accent-orange"} />
           <span className="text-sm font-medium text-text-primary">{name}</span>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isOff ? "bg-bg-secondary text-text-secondary" : "bg-accent-orange/20 text-accent-orange"}`}>
-          {isOff ? "Off" : state?.toUpperCase()}
-        </span>
+        <div className="flex items-center gap-1">
+          <FavoriteStar entityId={entityId} />
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isOff ? "bg-bg-secondary text-text-secondary" : "bg-accent-orange/20 text-accent-orange"}`}>
+            {isOff ? "Off" : state?.toUpperCase()}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-end gap-3">

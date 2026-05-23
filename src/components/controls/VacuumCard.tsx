@@ -1,6 +1,7 @@
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { Bot, Play, Pause, Home } from "lucide-react";
 
 interface VacuumCardProps {
@@ -54,11 +55,14 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           <Bot size={22} className={isDocked ? "text-text-secondary" : "text-accent-blue"} />
           <span className="text-text-primary font-medium">{name}</span>
         </div>
-        {battery != null && (
-          <span className={`text-sm font-medium ${batteryColor}`}>
-            {battery}%
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          <FavoriteStar entityId={entityId} />
+          {battery != null && (
+            <span className={`text-sm font-medium ${batteryColor}`}>
+              {battery}%
+            </span>
+          )}
+        </div>
       </div>
 
       <p className="text-sm text-text-secondary mb-4">

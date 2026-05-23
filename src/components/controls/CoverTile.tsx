@@ -1,6 +1,7 @@
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
+import { FavoriteStar } from "../ui/FavoriteStar";
 import { ChevronUp, ChevronDown, Square } from "lucide-react";
 
 interface CoverTileProps {
@@ -73,18 +74,21 @@ export function CoverTile({ entityId, name }: CoverTileProps) {
   return (
     <div className="bg-bg-tertiary rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-primary truncate">{name}</p>
           <p className="text-xs text-text-secondary">{stateLabel}{positionLabel ? ` · ${positionLabel}` : ""}</p>
         </div>
-        {position != null && (
-          <div className="w-8 h-16 bg-bg-secondary rounded-lg relative overflow-hidden">
-            <div
-              className="absolute top-0 w-full bg-accent-blue/40 transition-all duration-300"
-              style={{ height: `${100 - position}%` }}
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          <FavoriteStar entityId={entityId} />
+          {position != null && (
+            <div className="w-8 h-16 bg-bg-secondary rounded-lg relative overflow-hidden">
+              <div
+                className="absolute top-0 w-full bg-accent-blue/40 transition-all duration-300"
+                style={{ height: `${100 - position}%` }}
+              />
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex gap-2">
         <CoverButton icon={<ChevronUp size={18} />} onClick={open} label="Abrir" />

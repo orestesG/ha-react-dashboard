@@ -2,9 +2,11 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout'
 import type { ResponsiveLayouts } from 'react-grid-layout'
+import { useEffect } from 'react'
 import { useHA } from "./hooks/useHA";
 import { useHAStore } from "./store/ha-store";
 import { useLayoutStore } from "./store/layout-store";
+import { useFavoritesStore } from "./store/favorites-store";
 import { Living } from "./areas/Living";
 import { Cocina } from "./areas/Cocina";
 import { Oficina } from "./areas/Oficina";
@@ -17,27 +19,18 @@ import { EnergyChart } from "./components/widgets/EnergyChart";
 import { BatteryWidget } from "./components/widgets/BatteryWidget";
 import { SceneButtons } from "./components/widgets/SceneButtons";
 import { VacuumCard } from "./components/controls/VacuumCard";
-import { Sunrise, Moon, LayoutGrid, RotateCcw, Check } from "lucide-react";
+import { FavoritesCard } from "./components/widgets/FavoritesCard";
+import { WeatherChip } from "./components/widgets/WeatherChip";
+import { CommuteCard } from "./components/widgets/CommuteCard";
+import { CommuteChip } from "./components/widgets/CommuteChip";
+import { ExchangeRateCard } from "./components/widgets/ExchangeRateCard";
+import { TabBar } from "./components/ui/TabBar";
+import { GridSkeleton } from "./components/ui/GridSkeleton";
+import { LayoutGrid, RotateCcw, Check } from "lucide-react";
+import { PERSON_ENTITY, VACUUM_ENTITY, batterySensors, scenes, commuteRoutes } from "./dashboard.config";
 
 const HA_URL = import.meta.env.VITE_HA_URL || "";
 const HA_TOKEN = import.meta.env.VITE_HA_TOKEN || "";
-
-const batterySensors = [
-  { entityId: "sensor.detector_fuga_agua_battery", name: "Detector Agua 1", area: "Cocina" },
-  { entityId: "sensor.cocina_dtector_fuga_agua_battery", name: "Detector Agua 2", area: "Cocina" },
-  { entityId: "sensor.living_room_sensor_battery", name: "Temp-Humedad", area: "Living" },
-  { entityId: "sensor.curtain_3_c564_battery", name: "Cortina SwitchBot", area: "Cuarto" },
-  { entityId: "sensor.vibration_sensor_battery", name: "Vibración", area: "Oficina" },
-  { entityId: "sensor.sensor_movimiento_battery", name: "Movimiento", area: "Oficina" },
-  { entityId: "sensor.sonoff_snzb_02d_battery", name: "Temp-Humedad", area: "Cocina" },
-  { entityId: "sensor.ewelink_snzb_03p_battery", name: "Movimiento", area: "Pasillo" },
-  { entityId: "sensor.xiaomi_c102gl_43cb_battery_level", name: "Robot Aspirador", area: "General" },
-];
-
-const scenes = [
-  { entityId: "scene.buen_dia", label: "Buen día", icon: Sunrise },
-  { entityId: "scene.modo_sueno", label: "Modo sueño", icon: Moon },
-];
 
 interface AppProps {
   panelMode?: boolean;
@@ -62,8 +55,22 @@ function App({ panelMode = false }: AppProps) {
     panelMode ? undefined : HA_TOKEN,
   );
   const connect = useHAStore((s) => s.connect);
-  const { layouts, editMode, setLayouts, toggleEditMode, resetLayouts } = useLayoutStore();
+  const connection = useHAStore((s) => s.connection);
+  const { tabs, activeTabId, setActiveTab, editMode, setLayouts, toggleEditMode, resetLayouts, syncFromHA, haLoaded: layoutLoaded } = useLayoutStore();
+  const syncFavoritesFromHA = useFavoritesStore((s) => s.syncFromHA);
+  const favoritesLoaded = useFavoritesStore((s) => s.haLoaded);
+  const haLoading = isConnected && (!layoutLoaded || !favoritesLoaded);
+
+  useEffect(() => {
+    if (connection) {
+      void syncFromHA(connection);
+      void syncFavoritesFromHA(connection);
+    }
+  }, [connection]); // eslint-disable-line react-hooks/exhaustive-deps
   const { width, containerRef } = useContainerWidth({ measureBeforeMount: true });
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
+  const items = activeTab.itemIds;
 
   if (!panelMode && (!HA_URL || !HA_TOKEN)) {
     return (
@@ -86,7 +93,7 @@ function App({ panelMode = false }: AppProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary p-4 md:p-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-text-primary text-xl md:text-2xl font-semibold">
             Dashboard
@@ -96,9 +103,10 @@ function App({ panelMode = false }: AppProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <WeatherChip />
+          <CommuteChip routes={commuteRoutes} personEntityId={PERSON_ENTITY} />
           <SceneButtons scenes={scenes} />
 
-          {/* Edit layout controls */}
           {editMode && (
             <button
               onClick={resetLayouts}
@@ -153,10 +161,12 @@ function App({ panelMode = false }: AppProps) {
         </div>
       )}
 
-      <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
+      <TabBar tabs={tabs} activeTabId={activeTabId} onSelect={setActiveTab} />
+
+      {haLoading ? <GridSkeleton /> : <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
         <ResponsiveGridLayout
           width={width}
-          layouts={layouts}
+          layouts={activeTab.layouts}
           breakpoints={{ lg: 1280, md: 768, sm: 0 }}
           cols={{ lg: 4, md: 2, sm: 1 }}
           rowHeight={100}
@@ -166,19 +176,22 @@ function App({ panelMode = false }: AppProps) {
           resizeConfig={{ enabled: editMode, handles: ['se'] as const }}
           onLayoutChange={(_layout: unknown, allLayouts: ResponsiveLayouts) => setLayouts(allLayouts)}
         >
-          <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>
-          <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>
-          <div key="oficina"><GridItem editMode={editMode}><Oficina /></GridItem></div>
-          <div key="cuarto"><GridItem editMode={editMode}><CuartoPrincipal /></GridItem></div>
-          <div key="bano"><GridItem editMode={editMode}><Bano /></GridItem></div>
-          <div key="pasillo"><GridItem editMode={editMode}><EntradaPasillo /></GridItem></div>
-          <div key="balcon"><GridItem editMode={editMode}><Balcon /></GridItem></div>
-          <div key="vacuum"><GridItem editMode={editMode}><VacuumCard entityId="vacuum.xiaomi_c102gl_43cb_robot_cleaner" name="Robot" /></GridItem></div>
-          <div key="weather"><GridItem editMode={editMode}><WeatherWidget /></GridItem></div>
-          <div key="energy"><GridItem editMode={editMode}><EnergyChart /></GridItem></div>
-          <div key="battery"><GridItem editMode={editMode}><BatteryWidget sensors={batterySensors} /></GridItem></div>
+          {items.includes('favorites')      && <div key="favorites"><GridItem editMode={false}><FavoritesCard /></GridItem></div>}
+          {items.includes('living')         && <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>}
+          {items.includes('cocina')         && <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>}
+          {items.includes('oficina')        && <div key="oficina"><GridItem editMode={editMode}><Oficina /></GridItem></div>}
+          {items.includes('cuarto')         && <div key="cuarto"><GridItem editMode={editMode}><CuartoPrincipal /></GridItem></div>}
+          {items.includes('bano')           && <div key="bano"><GridItem editMode={editMode}><Bano /></GridItem></div>}
+          {items.includes('pasillo')        && <div key="pasillo"><GridItem editMode={editMode}><EntradaPasillo /></GridItem></div>}
+          {items.includes('balcon')         && <div key="balcon"><GridItem editMode={editMode}><Balcon /></GridItem></div>}
+          {items.includes('vacuum')         && <div key="vacuum"><GridItem editMode={editMode}><VacuumCard entityId={VACUUM_ENTITY} name="Robot" /></GridItem></div>}
+          {items.includes('weather')        && <div key="weather"><GridItem editMode={editMode}><WeatherWidget /></GridItem></div>}
+          {items.includes('energy')         && <div key="energy"><GridItem editMode={editMode}><EnergyChart /></GridItem></div>}
+          {items.includes('battery')        && <div key="battery"><GridItem editMode={editMode}><BatteryWidget sensors={batterySensors} /></GridItem></div>}
+          {items.includes('commute')        && <div key="commute"><GridItem editMode={editMode}><CommuteCard routes={commuteRoutes} personEntityId={PERSON_ENTITY} /></GridItem></div>}
+          {items.includes('exchange-rates') && <div key="exchange-rates"><GridItem editMode={editMode}><ExchangeRateCard /></GridItem></div>}
         </ResponsiveGridLayout>
-      </div>
+      </div>}
     </div>
   );
 }
