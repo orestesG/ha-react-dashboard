@@ -81,9 +81,11 @@ function VacuumMapInner({
   const [svgRect,     setSvgRect]     = useState<{ width: number; height: number } | null>(null);
   const [popupSuction,setPopupSuction]= useState<string>("");
   const [popupRepeats,setPopupRepeats]= useState(1);
-  const [isDragging,  setIsDragging]  = useState(false);
-  const observerRef  = useRef<ResizeObserver | null>(null);
-  const dragStart    = useRef<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const dragStart   = useRef<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null);
+  // Ref (not state) so the click handler reads it synchronously before React re-renders
+  const didDragRef  = useRef(false);
 
   // ── single memo: extract raw data → apply flip+rotation → compute viewBox → apply zoom ──
   const mapData = useMemo(() => {
@@ -217,6 +219,7 @@ function VacuumMapInner({
   const handlePointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    didDragRef.current = false;
     dragStart.current = { clientX: e.clientX, clientY: e.clientY, panX: pan?.x ?? 0, panY: pan?.y ?? 0 };
     setIsDragging(true);
   };
@@ -226,27 +229,22 @@ function VacuumMapInner({
     const { clientX, clientY, panX, panY } = dragStart.current;
     const dx = e.clientX - clientX;
     const dy = e.clientY - clientY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) didDragRef.current = true;
     // Scale pixel delta to SVG units using rendered size
     const vb = mapData.viewBox;
     const vbAspect = vb.w / vb.h;
     const ctxAspect = svgRect.width / svgRect.height;
     const renderedW = vbAspect > ctxAspect ? svgRect.width : svgRect.height * vbAspect;
     const renderedH = vbAspect > ctxAspect ? svgRect.width / vbAspect : svgRect.height;
-    // drag right → pan.x increases → viewBox.x decreases → content shifts right ✓
     onPanChange?.({ x: panX + dx * (vb.w / renderedW), y: panY + dy * (vb.h / renderedH) });
   };
 
-  const handlePointerUp = (e?: PointerEvent<SVGSVGElement>) => {
-    const wasDrag = dragStart.current && e
-      ? Math.abs(e.clientX - dragStart.current.clientX) > 4 || Math.abs(e.clientY - dragStart.current.clientY) > 4
-      : false;
+  const handlePointerUp = () => {
     dragStart.current = null;
-    setIsDragging(wasDrag as boolean);
-    // Reset isDragging after one frame so click handlers can check it
-    if (wasDrag) setTimeout(() => setIsDragging(false), 0);
+    setIsDragging(false);
+    // didDragRef stays true until next pointerDown; click fires synchronously after
+    // pointerUp so it will read the correct ref value before we reset it
   };
-
-  const hasDragged = isDragging;
 
   if (!entity) return (
     <div className={`flex items-center justify-center bg-bg-tertiary text-text-secondary text-xs p-4 ${className}`}>
@@ -328,7 +326,7 @@ function VacuumMapInner({
                 fill={sel ? "rgba(59,130,246,0.35)" : ROOM_FILLS[ci]}
                 stroke={sel ? "rgb(37 99 235)" : ROOM_STROKES[ci]}
                 strokeWidth={sel ? wallStroke * 0.8 : wallStroke * 0.4}
-                onClick={() => !hasDragged && onRoomClick?.(id)}
+                onClick={() => { if (!didDragRef.current) onRoomClick?.(id); }}
                 style={{ cursor: onRoomClick ? (isDragging ? "grabbing" : "pointer") : "default" }}
               />
             );
