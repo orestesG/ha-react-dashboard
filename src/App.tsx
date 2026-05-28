@@ -163,35 +163,37 @@ function App({ panelMode = false }: AppProps) {
 
       <TabBar tabs={tabs} activeTabId={activeTabId} onSelect={setActiveTab} />
 
-      {haLoading ? <GridSkeleton /> : <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
-        <ResponsiveGridLayout
-          width={width}
-          layouts={activeTab.layouts}
-          breakpoints={{ lg: 1280, md: 768, sm: 0 }}
-          cols={{ lg: 4, md: 2, sm: 1 }}
-          rowHeight={100}
-          margin={[16, 16]}
-          containerPadding={[0, 0]}
-          dragConfig={{ enabled: editMode }}
-          resizeConfig={{ enabled: editMode, handles: ['se'] as const }}
-          onLayoutChange={(_layout: unknown, allLayouts: ResponsiveLayouts) => setLayouts(allLayouts)}
-        >
-          {items.includes('favorites')      && <div key="favorites"><GridItem editMode={false}><FavoritesCard /></GridItem></div>}
-          {items.includes('living')         && <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>}
-          {items.includes('cocina')         && <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>}
-          {items.includes('oficina')        && <div key="oficina"><GridItem editMode={editMode}><Oficina /></GridItem></div>}
-          {items.includes('cuarto')         && <div key="cuarto"><GridItem editMode={editMode}><CuartoPrincipal /></GridItem></div>}
-          {items.includes('bano')           && <div key="bano"><GridItem editMode={editMode}><Bano /></GridItem></div>}
-          {items.includes('pasillo')        && <div key="pasillo"><GridItem editMode={editMode}><EntradaPasillo /></GridItem></div>}
-          {items.includes('balcon')         && <div key="balcon"><GridItem editMode={editMode}><Balcon /></GridItem></div>}
-          {items.includes('vacuum')         && <div key="vacuum"><GridItem editMode={editMode}><VacuumCard entityId={VACUUM_ENTITY} name="Robot" /></GridItem></div>}
-          {items.includes('weather')        && <div key="weather"><GridItem editMode={editMode}><WeatherWidget /></GridItem></div>}
-          {items.includes('energy')         && <div key="energy"><GridItem editMode={editMode}><EnergyChart /></GridItem></div>}
-          {items.includes('battery')        && <div key="battery"><GridItem editMode={editMode}><BatteryWidget sensors={batterySensors} /></GridItem></div>}
-          {items.includes('commute')        && <div key="commute"><GridItem editMode={editMode}><CommuteCard routes={commuteRoutes} personEntityId={PERSON_ENTITY} /></GridItem></div>}
-          {items.includes('exchange-rates') && <div key="exchange-rates"><GridItem editMode={editMode}><ExchangeRateCard /></GridItem></div>}
-        </ResponsiveGridLayout>
-      </div>}
+      <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
+        {haLoading ? <GridSkeleton /> : (
+          <ResponsiveGridLayout
+            width={width}
+            layouts={activeTab.layouts}
+            breakpoints={{ lg: 1280, md: 768, sm: 0 }}
+            cols={{ lg: 4, md: 2, sm: 1 }}
+            rowHeight={100}
+            margin={[16, 16]}
+            containerPadding={[0, 0]}
+            dragConfig={{ enabled: editMode }}
+            resizeConfig={{ enabled: editMode, handles: ['se'] as const }}
+            onLayoutChange={(_layout: unknown, allLayouts: ResponsiveLayouts) => setLayouts(allLayouts)}
+          >
+            {items.includes('favorites')      && <div key="favorites"><GridItem editMode={false}><FavoritesCard /></GridItem></div>}
+            {items.includes('living')         && <div key="living"><GridItem editMode={editMode}><Living /></GridItem></div>}
+            {items.includes('cocina')         && <div key="cocina"><GridItem editMode={editMode}><Cocina /></GridItem></div>}
+            {items.includes('oficina')        && <div key="oficina"><GridItem editMode={editMode}><Oficina /></GridItem></div>}
+            {items.includes('cuarto')         && <div key="cuarto"><GridItem editMode={editMode}><CuartoPrincipal /></GridItem></div>}
+            {items.includes('bano')           && <div key="bano"><GridItem editMode={editMode}><Bano /></GridItem></div>}
+            {items.includes('pasillo')        && <div key="pasillo"><GridItem editMode={editMode}><EntradaPasillo /></GridItem></div>}
+            {items.includes('balcon')         && <div key="balcon"><GridItem editMode={editMode}><Balcon /></GridItem></div>}
+            {items.includes('vacuum')         && <div key="vacuum"><GridItem editMode={editMode}><VacuumCard entityId={VACUUM_ENTITY} name="Robot" /></GridItem></div>}
+            {items.includes('weather')        && <div key="weather"><GridItem editMode={editMode}><WeatherWidget /></GridItem></div>}
+            {items.includes('energy')         && <div key="energy"><GridItem editMode={editMode}><EnergyChart /></GridItem></div>}
+            {items.includes('battery')        && <div key="battery"><GridItem editMode={editMode}><BatteryWidget sensors={batterySensors} /></GridItem></div>}
+            {items.includes('commute')        && <div key="commute"><GridItem editMode={editMode}><CommuteCard routes={commuteRoutes} personEntityId={PERSON_ENTITY} /></GridItem></div>}
+            {items.includes('exchange-rates') && <div key="exchange-rates"><GridItem editMode={editMode}><ExchangeRateCard /></GridItem></div>}
+          </ResponsiveGridLayout>
+        )}
+      </div>
     </div>
   );
 }

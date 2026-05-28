@@ -16,6 +16,22 @@ interface HAState {
   getEntity: (entityId: string) => HassEntity | undefined;
 }
 
+// Debounce entity updates to avoid triggering React setState during a commit
+// phase (which causes "Maximum update depth exceeded" with high-frequency sources).
+function makeBatchedSubscriber(set: (s: Partial<HAState>) => void) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: Record<string, HassEntity> | null = null;
+  return (updated: Record<string, HassEntity>) => {
+    pending = updated;
+    if (timer) return;
+    timer = setTimeout(() => {
+      if (pending) set({ entities: pending, entityCount: Object.keys(pending).length });
+      pending = null;
+      timer = null;
+    }, 50);
+  };
+}
+
 export const useHAStore = create<HAState>((set, get) => ({
   connection: null,
   entities: {},
@@ -31,9 +47,7 @@ export const useHAStore = create<HAState>((set, get) => ({
       const entityMap: Record<string, HassEntity> = {};
       entities.forEach((e) => { entityMap[e.entity_id] = e; });
 
-      subscribeAllEntities(conn, (updated) => {
-        set({ entities: updated, entityCount: Object.keys(updated).length });
-      });
+      subscribeAllEntities(conn, makeBatchedSubscriber(set));
 
       conn.addEventListener("ready", () => {
         set({ isConnected: true, error: null });
@@ -63,9 +77,7 @@ export const useHAStore = create<HAState>((set, get) => ({
     conn.addEventListener("disconnected", () => {
       set({ isConnected: false });
     });
-    subscribeAllEntities(conn, (updated) => {
-      set({ entities: updated, entityCount: Object.keys(updated).length });
-    });
+    subscribeAllEntities(conn, makeBatchedSubscriber(set));
     set({ connection: conn, isConnected: true, error: null });
   },
 
@@ -75,9 +87,7 @@ export const useHAStore = create<HAState>((set, get) => ({
   },
 
   subscribeEntitiesFromConn: (conn: Connection) => {
-    subscribeAllEntities(conn, (updated) => {
-      set({ entities: updated, entityCount: Object.keys(updated).length });
-    });
+    subscribeAllEntities(conn, makeBatchedSubscriber(set));
   },
 
   getEntity: (entityId: string) => {
