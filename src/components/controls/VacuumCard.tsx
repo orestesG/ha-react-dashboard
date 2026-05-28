@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
-import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar } from "lucide-react";
+import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import {
   VACUUM_CLEANING_MODE_ENTITY,
   VACUUM_SUCTION_LEVEL_ENTITY,
@@ -13,8 +13,12 @@ import {
 const SCHEDULE_ENTITY = "schedule.limpieza_robot";
 import { VacuumMap } from "../widgets/VacuumMap";
 
-const MAP_ENTITY = "camera.xiaomi_robot_vacuum_x20_map";
+const MAP_ENTITY    = "camera.xiaomi_robot_vacuum_x20_map";
 const PRESETS_LS_KEY = "vacuum-presets-v1";
+const VIEW_LS_KEY    = "vacuum-view-v1";
+
+const ZOOM_STEPS = [0.75, 1, 1.5, 2, 3] as const;
+type RotDeg = 0 | 90 | 180 | 270;
 
 interface VacuumCardProps {
   entityId: string;
@@ -90,9 +94,26 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const [expandedPreset, setExpandedPreset] = useState<"full" | "sweep" | null>(null);
   const [presets, setPresets] = useState<PresetsState>(loadPresets);
 
+  // View preferences — persisted
+  const [mapRotation, setMapRotation] = useState<RotDeg>(() => {
+    try { return (JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").rotation ?? 0) as RotDeg; } catch { return 0; }
+  });
+  const [mapZoom, setMapZoom] = useState<number>(() => {
+    try { return JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").zoom ?? 1; } catch { return 1; }
+  });
+
   useEffect(() => {
     try { localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
   }, [presets]);
+
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify({ rotation: mapRotation, zoom: mapZoom })); } catch { /* ignore */ }
+  }, [mapRotation, mapZoom]);
+
+  const rotateCW  = () => setMapRotation(r => ((r + 90)  % 360) as RotDeg);
+  const rotateCCW = () => setMapRotation(r => ((r - 90 + 360) % 360) as RotDeg);
+  const zoomIn    = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z; });
+  const zoomOut   = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i > 0 ? ZOOM_STEPS[i - 1] : z; });
 
   const state = entity?.state;
   const battery = entity?.attributes?.battery as number | undefined;
@@ -265,16 +286,26 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             selectedRoomId={selectedRoom}
             onRoomClick={toggleRoom}
             onRoomClean={launchRoomClean}
+            rotationDeg={mapRotation}
+            zoom={mapZoom}
             showPopup
             showLabels={false}
           />
-          <button
-            onClick={() => setMapOpen(true)}
-            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
-            aria-label="Ampliar mapa"
-          >
-            <Maximize2 size={14} />
-          </button>
+          {/* Map controls overlay */}
+          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+            {/* Rotate */}
+            <div className="flex gap-1 pointer-events-auto">
+              <button onClick={rotateCCW} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar izquierda"><RotateCcw size={13} /></button>
+              <button onClick={rotateCW}  className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar derecha"><RotateCw  size={13} /></button>
+            </div>
+            {/* Zoom + expand */}
+            <div className="flex gap-1 pointer-events-auto">
+              <button onClick={zoomOut} disabled={mapZoom <= ZOOM_STEPS[0]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Alejar"><ZoomOut size={13} /></button>
+              <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-[10px] font-medium self-center">{mapZoom === 1 ? "1×" : `${mapZoom}×`}</span>
+              <button onClick={zoomIn}  disabled={mapZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Acercar"><ZoomIn  size={13} /></button>
+              <button onClick={() => setMapOpen(true)} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Ampliar mapa"><Maximize2 size={13} /></button>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -331,6 +362,8 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
               selectedRoomId={selectedRoom}
               onRoomClick={toggleRoom}
               onRoomClean={launchRoomClean}
+              rotationDeg={mapRotation}
+              zoom={mapZoom}
               showPopup
               showLabels={true}
             />
