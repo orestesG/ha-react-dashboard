@@ -106,9 +106,25 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const nextEventLabel = (() => {
     if (!nextEvent) return null;
     try {
-      return new Intl.DateTimeFormat("es-AR", {
-        weekday: "short", hour: "2-digit", minute: "2-digit",
-      }).format(new Date(nextEvent));
+      const d = new Date(nextEvent);
+      const now = new Date();
+      const diffMs = d.getTime() - now.getTime();
+      const diffH = diffMs / 3_600_000;
+      const tz = "America/Buenos_Aires";
+      const timePart = new Intl.DateTimeFormat("es-AR", {
+        timeZone: tz, hour: "2-digit", minute: "2-digit",
+      }).format(d);
+      if (diffH < 0) return null;
+      if (diffH < 24) {
+        const dayLabel = new Intl.DateTimeFormat("es-AR", {
+          timeZone: tz, weekday: "short",
+        }).format(d);
+        return `${dayLabel} ${timePart}`;
+      }
+      const dateLabel = new Intl.DateTimeFormat("es-AR", {
+        timeZone: tz, weekday: "short", day: "numeric", month: "short",
+      }).format(d);
+      return `${dateLabel} ${timePart}`;
     } catch { return null; }
   })();
 
