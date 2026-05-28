@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
-import { Bot, Play, Pause, Home, Maximize2, X } from "lucide-react";
+import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind } from "lucide-react";
 import {
   VACUUM_CLEANING_MODE_ENTITY,
   VACUUM_SUCTION_LEVEL_ENTITY,
@@ -12,23 +12,47 @@ import {
 import { VacuumMap } from "../widgets/VacuumMap";
 
 const MAP_ENTITY = "camera.xiaomi_robot_vacuum_x20_map";
-
-interface Room { id: number; name: string }
+const PRESETS_LS_KEY = "vacuum-presets-v1";
 
 interface VacuumCardProps {
   entityId: string;
   name?: string;
 }
 
-function SegmentButtons({
-  options,
-  current,
-  onSelect,
-}: {
-  options: string[];
-  current: string;
-  onSelect: (v: string) => void;
-}) {
+interface PresetConfig {
+  mode: string;
+  suction: string;
+  water: string;
+}
+
+interface PresetsState {
+  full: PresetConfig;
+  sweep: PresetConfig;
+}
+
+const DEFAULT_PRESETS: PresetsState = {
+  full:  { mode: "Mopping And Sweeping", suction: "Standard", water: "Medium" },
+  sweep: { mode: "Sweeping",             suction: "Standard", water: "" },
+};
+
+function loadPresets(): PresetsState {
+  try {
+    const raw = localStorage.getItem(PRESETS_LS_KEY);
+    if (raw) return { ...DEFAULT_PRESETS, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return DEFAULT_PRESETS;
+}
+
+function pickClosest(want: string, options: string[]): string {
+  if (!want || options.length === 0) return options[0] ?? "";
+  const lower = want.toLowerCase();
+  const exact = options.find((o) => o.toLowerCase() === lower);
+  if (exact) return exact;
+  const partial = options.find((o) => o.toLowerCase().includes(lower) || lower.includes(o.toLowerCase()));
+  return partial ?? options[0];
+}
+
+function Chips({ options, current, onSelect }: { options: string[]; current: string; onSelect: (v: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1">
       {options.map((opt) => {
@@ -37,10 +61,10 @@ function SegmentButtons({
           <button
             key={opt}
             onClick={() => onSelect(opt)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all capitalize ${
+            className={`px-2 py-0.5 rounded text-[10px] font-medium capitalize transition-all ${
               active
                 ? "bg-accent-blue/20 text-accent-blue"
-                : "bg-bg-tertiary text-text-secondary hover:text-text-primary"
+                : "bg-bg-secondary text-text-secondary hover:text-text-primary"
             }`}
           >
             {opt}
@@ -60,24 +84,21 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
 
   const [mapOpen, setMapOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
-  const [roomSuction, setRoomSuction] = useState<string | null>(null);
-  const [roomRepeats, setRoomRepeats] = useState(1);
+  const [expandedPreset, setExpandedPreset] = useState<"full" | "sweep" | null>(null);
+  const [presets, setPresets] = useState<PresetsState>(loadPresets);
+
+  useEffect(() => {
+    try { localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
+  }, [presets]);
 
   const state = entity?.state;
   const battery = entity?.attributes?.battery as number | undefined;
   const status = entity?.attributes?.status as string | undefined;
-  const selectedMap = entity?.attributes?.selected_map as string | undefined;
-  const roomsMap = entity?.attributes?.rooms as Record<string, Room[]> | undefined;
-  const rooms: Room[] = (selectedMap && roomsMap?.[selectedMap]) ?? [];
 
   const modeOptions = (modeEnt?.attributes?.options as string[] | undefined) ?? [];
-  const currentMode = modeEnt?.state ?? "";
   const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
-  const currentSuction = suctionEnt?.state ?? "";
   const waterOptions = (waterEnt?.attributes?.options as string[] | undefined) ?? [];
-  const currentWater = waterEnt?.state ?? "";
 
-  const isMoppingMode = currentMode.toLowerCase().includes("mop") || currentMode.toLowerCase().includes("combin");
   const isCleaning = state === "cleaning";
   const isDocked = state === "docked";
 
@@ -85,23 +106,36 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const pause = () => connection && callService(connection, "vacuum", "pause", undefined, { entity_id: entityId });
   const dock = () => connection && callService(connection, "vacuum", "return_to_base", undefined, { entity_id: entityId });
   const setSelect = (selectEntityId: string, option: string) =>
-    connection && callService(connection, "select", "select_option", { option }, { entity_id: selectEntityId });
+    callService(connection!, "select", "select_option", { option }, { entity_id: selectEntityId });
 
-  const launchRoomClean = () => {
-    if (!connection || selectedRoom == null) return;
-    const data: Record<string, unknown> = { segments: selectedRoom, repeats: roomRepeats };
-    if (roomSuction) data.suction_level = roomSuction;
+  const runPreset = async (preset: PresetConfig) => {
+    if (!connection) return;
+    const mode = pickClosest(preset.mode, modeOptions);
+    const suction = pickClosest(preset.suction, suctionOptions);
+    const water = preset.water ? pickClosest(preset.water, waterOptions) : "";
+    try {
+      if (mode) await setSelect(VACUUM_CLEANING_MODE_ENTITY, mode);
+      if (suction) await setSelect(VACUUM_SUCTION_LEVEL_ENTITY, suction);
+      if (water) await setSelect(VACUUM_WATER_VOLUME_ENTITY, water);
+      await callService(connection, "vacuum", "start", undefined, { entity_id: entityId });
+    } catch (err) {
+      console.error("Vacuum preset failed", err);
+    }
+  };
+
+  const updatePreset = (key: "full" | "sweep", patch: Partial<PresetConfig>) => {
+    setPresets((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
+
+  const launchRoomClean = (segmentId: number, options: { suction?: string; repeats: number }) => {
+    if (!connection) return;
+    const data: Record<string, unknown> = { segments: segmentId, repeats: options.repeats };
+    if (options.suction) data.suction_level = options.suction;
     callService(connection, "dreame_vacuum", "vacuum_clean_segment", data, { entity_id: entityId });
     setSelectedRoom(null);
-    setRoomSuction(null);
-    setRoomRepeats(1);
   };
 
-  const openRoom = (id: number) => {
-    setSelectedRoom(selectedRoom === id ? null : id);
-    setRoomSuction(currentSuction || null);
-    setRoomRepeats(1);
-  };
+  const toggleRoom = (id: number) => setSelectedRoom(selectedRoom === id ? null : id);
 
   const batteryColor =
     battery == null ? "text-text-secondary"
@@ -118,7 +152,79 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
     );
   }
 
-  const selectedRoomObj = rooms.find((r) => r.id === selectedRoom);
+  const renderPresetSettings = (key: "full" | "sweep") => {
+    const cfg = presets[key];
+    const wantsWater = key === "full";
+    return (
+      <div className="mt-2 p-2.5 rounded-lg bg-bg-tertiary space-y-2">
+        {modeOptions.length > 0 && (
+          <div>
+            <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Modo</p>
+            <Chips
+              options={modeOptions}
+              current={pickClosest(cfg.mode, modeOptions)}
+              onSelect={(v) => updatePreset(key, { mode: v })}
+            />
+          </div>
+        )}
+        {suctionOptions.length > 0 && (
+          <div>
+            <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Succión</p>
+            <Chips
+              options={suctionOptions}
+              current={pickClosest(cfg.suction, suctionOptions)}
+              onSelect={(v) => updatePreset(key, { suction: v })}
+            />
+          </div>
+        )}
+        {wantsWater && waterOptions.length > 0 && (
+          <div>
+            <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Agua</p>
+            <Chips
+              options={waterOptions}
+              current={pickClosest(cfg.water, waterOptions)}
+              onSelect={(v) => updatePreset(key, { water: v })}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const PresetRow = ({
+    presetKey,
+    icon,
+    label,
+  }: {
+    presetKey: "full" | "sweep";
+    icon: React.ReactNode;
+    label: string;
+  }) => {
+    const expanded = expandedPreset === presetKey;
+    return (
+      <div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => runPreset(presets[presetKey])}
+            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-accent-blue/10 hover:text-accent-blue transition-all"
+          >
+            {icon}
+            <span className="text-left">{label}</span>
+          </button>
+          <button
+            onClick={() => setExpandedPreset(expanded ? null : presetKey)}
+            className={`px-2.5 rounded-xl transition-all ${
+              expanded ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"
+            }`}
+            aria-label="Configurar preset"
+          >
+            <Settings2 size={14} />
+          </button>
+        </div>
+        {expanded && renderPresetSettings(presetKey)}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -140,14 +246,17 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="relative rounded-xl overflow-hidden bg-bg-tertiary">
           <VacuumMap
             cameraEntityId={MAP_ENTITY}
+            suctionEntityId={VACUUM_SUCTION_LEVEL_ENTITY}
             selectedRoomId={selectedRoom}
-            onRoomClick={openRoom}
-            className="max-h-48"
+            onRoomClick={toggleRoom}
+            onRoomClean={launchRoomClean}
+            showPopup
+            className="max-h-56"
             showLabels={false}
           />
           <button
             onClick={() => setMapOpen(true)}
-            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
+            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors z-10"
             aria-label="Ampliar mapa"
           >
             <Maximize2 size={14} />
@@ -172,108 +281,11 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           </button>
         </div>
 
-        {modeOptions.length > 0 && (
-          <div>
-            <p className="text-xs text-text-secondary mb-1.5 uppercase tracking-wider">Modo</p>
-            <SegmentButtons
-              options={modeOptions}
-              current={currentMode}
-              onSelect={(v) => setSelect(VACUUM_CLEANING_MODE_ENTITY, v)}
-            />
-          </div>
-        )}
-
-        {suctionOptions.length > 0 && (
-          <div>
-            <p className="text-xs text-text-secondary mb-1.5 uppercase tracking-wider">Succión</p>
-            <SegmentButtons
-              options={suctionOptions}
-              current={currentSuction}
-              onSelect={(v) => setSelect(VACUUM_SUCTION_LEVEL_ENTITY, v)}
-            />
-          </div>
-        )}
-
-        {isMoppingMode && waterOptions.length > 0 && (
-          <div>
-            <p className="text-xs text-text-secondary mb-1.5 uppercase tracking-wider">Agua</p>
-            <SegmentButtons
-              options={waterOptions}
-              current={currentWater}
-              onSelect={(v) => setSelect(VACUUM_WATER_VOLUME_ENTITY, v)}
-            />
-          </div>
-        )}
-
-        {rooms.length > 0 && (
-          <div>
-            <p className="text-xs text-text-secondary mb-2 uppercase tracking-wider">Habitaciones</p>
-            <div className="flex flex-wrap gap-1.5">
-              {rooms.map((room) => {
-                const active = selectedRoom === room.id;
-                return (
-                  <button
-                    key={room.id}
-                    onClick={() => openRoom(room.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all capitalize ${
-                      active
-                        ? "bg-accent-blue/20 text-accent-blue"
-                        : "bg-bg-tertiary text-text-secondary hover:bg-accent-blue/10 hover:text-accent-blue"
-                    }`}
-                  >
-                    {room.name}
-                  </button>
-                );
-              })}
-            </div>
-
-            {selectedRoomObj && (
-              <div className="mt-3 p-3 rounded-xl bg-bg-tertiary space-y-2.5">
-                <p className="text-xs text-text-primary font-medium capitalize">{selectedRoomObj.name}</p>
-
-                {suctionOptions.length > 0 && (
-                  <div>
-                    <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Succión</p>
-                    <SegmentButtons
-                      options={suctionOptions}
-                      current={roomSuction ?? ""}
-                      onSelect={(v) => setRoomSuction(v)}
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Pasadas</p>
-                  <div className="flex gap-1">
-                    {[1, 2, 3].map((n) => {
-                      const active = roomRepeats === n;
-                      return (
-                        <button
-                          key={n}
-                          onClick={() => setRoomRepeats(n)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                            active
-                              ? "bg-accent-blue/20 text-accent-blue"
-                              : "bg-bg-secondary text-text-secondary hover:text-text-primary"
-                          }`}
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <button
-                  onClick={launchRoomClean}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium hover:bg-accent-green/30 transition-all"
-                >
-                  <Play size={14} /> Limpiar habitación
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="space-y-2 pt-1 border-t border-border-main">
+          <p className="text-[10px] text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
+          <PresetRow presetKey="full"  icon={<Sparkles size={14} className="text-accent-blue" />} label="Aspirado + Mopa" />
+          <PresetRow presetKey="sweep" icon={<Wind size={14} className="text-accent-blue" />}     label="Solo aspirado" />
+        </div>
       </div>
 
       {mapOpen && createPortal(
@@ -291,8 +303,11 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             </button>
             <VacuumMap
               cameraEntityId={MAP_ENTITY}
+              suctionEntityId={VACUUM_SUCTION_LEVEL_ENTITY}
               selectedRoomId={selectedRoom}
-              onRoomClick={openRoom}
+              onRoomClick={toggleRoom}
+              onRoomClean={launchRoomClean}
+              showPopup
               showLabels={true}
             />
           </div>
