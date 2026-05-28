@@ -3,12 +3,14 @@ import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
-import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind } from "lucide-react";
+import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar } from "lucide-react";
 import {
   VACUUM_CLEANING_MODE_ENTITY,
   VACUUM_SUCTION_LEVEL_ENTITY,
   VACUUM_WATER_VOLUME_ENTITY,
 } from "../../dashboard.config";
+
+const SCHEDULE_ENTITY = "schedule.limpieza_robot";
 import { VacuumMap } from "../widgets/VacuumMap";
 
 const MAP_ENTITY = "camera.xiaomi_robot_vacuum_x20_map";
@@ -31,8 +33,8 @@ interface PresetsState {
 }
 
 const DEFAULT_PRESETS: PresetsState = {
-  full:  { mode: "Mopping And Sweeping", suction: "Standard", water: "Medium" },
-  sweep: { mode: "Sweeping",             suction: "Standard", water: "" },
+  full:  { mode: "mopping_after_sweeping", suction: "standard", water: "" },
+  sweep: { mode: "sweeping",               suction: "standard", water: "" },
 };
 
 function loadPresets(): PresetsState {
@@ -80,6 +82,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const { entity: modeEnt } = useEntity(VACUUM_CLEANING_MODE_ENTITY);
   const { entity: suctionEnt } = useEntity(VACUUM_SUCTION_LEVEL_ENTITY);
   const { entity: waterEnt } = useEntity(VACUUM_WATER_VOLUME_ENTITY);
+  const { entity: scheduleEnt } = useEntity(SCHEDULE_ENTITY);
   const connection = useHAStore((s) => s.connection);
 
   const [mapOpen, setMapOpen] = useState(false);
@@ -98,6 +101,16 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const modeOptions = (modeEnt?.attributes?.options as string[] | undefined) ?? [];
   const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
   const waterOptions = (waterEnt?.attributes?.options as string[] | undefined) ?? [];
+
+  const nextEvent = scheduleEnt?.attributes?.next_event as string | undefined;
+  const nextEventLabel = (() => {
+    if (!nextEvent) return null;
+    try {
+      return new Intl.DateTimeFormat("es-AR", {
+        weekday: "short", hour: "2-digit", minute: "2-digit",
+      }).format(new Date(nextEvent));
+    } catch { return null; }
+  })();
 
   const isCleaning = state === "cleaning";
   const isDocked = state === "docked";
@@ -285,6 +298,16 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           <p className="text-[10px] text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
           <PresetRow presetKey="full"  icon={<Sparkles size={14} className="text-accent-blue" />} label="Aspirado + Mopa" />
           <PresetRow presetKey="sweep" icon={<Wind size={14} className="text-accent-blue" />}     label="Solo aspirado" />
+
+          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary text-text-secondary text-sm">
+            <Calendar size={14} className="text-accent-blue shrink-0" />
+            <span className="text-left flex-1 text-text-primary font-medium">Programada</span>
+            {nextEventLabel ? (
+              <span className="text-xs text-text-secondary">{nextEventLabel}</span>
+            ) : (
+              <span className="text-xs text-text-secondary">Sin programar</span>
+            )}
+          </div>
         </div>
       </div>
 
