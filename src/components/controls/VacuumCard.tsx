@@ -106,25 +106,11 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const nextEventLabel = (() => {
     if (!nextEvent) return null;
     try {
-      const d = new Date(nextEvent);
-      const now = new Date();
-      const diffMs = d.getTime() - now.getTime();
-      const diffH = diffMs / 3_600_000;
-      const tz = "America/Buenos_Aires";
-      const timePart = new Intl.DateTimeFormat("es-AR", {
-        timeZone: tz, hour: "2-digit", minute: "2-digit",
-      }).format(d);
-      if (diffH < 0) return null;
-      if (diffH < 24) {
-        const dayLabel = new Intl.DateTimeFormat("es-AR", {
-          timeZone: tz, weekday: "short",
-        }).format(d);
-        return `${dayLabel} ${timePart}`;
-      }
-      const dateLabel = new Intl.DateTimeFormat("es-AR", {
-        timeZone: tz, weekday: "short", day: "numeric", month: "short",
-      }).format(d);
-      return `${dateLabel} ${timePart}`;
+      return new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Buenos_Aires",
+        weekday: "short", day: "numeric", month: "short",
+        hour: "2-digit", minute: "2-digit",
+      }).format(new Date(nextEvent));
     } catch { return null; }
   })();
 
@@ -257,7 +243,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
 
   return (
     <>
-      <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main h-full flex flex-col gap-3 overflow-y-auto">
+      <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main h-full flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bot size={20} className={isDocked ? "text-text-secondary" : "text-accent-blue"} />
@@ -272,7 +258,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           {status ?? (isDocked ? "En base" : isCleaning ? "Limpiando..." : state)}
         </p>
 
-        <div className="relative rounded-xl overflow-hidden bg-bg-tertiary">
+        <div className="relative flex-1 min-h-0 rounded-xl overflow-hidden bg-bg-tertiary">
           <VacuumMap
             cameraEntityId={MAP_ENTITY}
             suctionEntityId={VACUUM_SUCTION_LEVEL_ENTITY}
@@ -280,7 +266,6 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             onRoomClick={toggleRoom}
             onRoomClean={launchRoomClean}
             showPopup
-            className="max-h-56"
             showLabels={false}
           />
           <button

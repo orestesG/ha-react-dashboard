@@ -30,7 +30,7 @@ interface VacuumMapProps {
   selectedRoomId?: number | null;
   onRoomClick?: (roomId: number) => void;
   onRoomClean?: (segmentId: number, options: RoomCleanOptions) => void;
-  rotation?: 0 | 90 | 180 | 270;
+  transform?: "none" | "mirrorH" | "mirrorV" | "rotate180";
   className?: string;
   showLabels?: boolean;
   showPopup?: boolean;
@@ -65,7 +65,7 @@ function VacuumMapInner({
   selectedRoomId,
   onRoomClick,
   onRoomClean,
-  rotation = 180,
+  transform = "mirrorH",
   className = "",
   showLabels = true,
   showPopup = false,
@@ -126,10 +126,18 @@ function VacuumMapInner({
 
     const cx = viewBox.x + viewBox.w / 2;
     const cy = viewBox.y + viewBox.h / 2;
-    const flip = rotation === 180;
-    const fx = (x: number) => (flip ? 2 * cx - x : x);
-    const fy = (y: number) => (flip ? 2 * cy - y : y);
-    const fa = (a?: number) => (a === undefined ? undefined : flip ? (a + 180) % 360 : a);
+    const flipX = transform === "mirrorH" || transform === "rotate180";
+    const flipY = transform === "mirrorV" || transform === "rotate180";
+    const fx = (x: number) => (flipX ? 2 * cx - x : x);
+    const fy = (y: number) => (flipY ? 2 * cy - y : y);
+    // Angle transform: mirrorH reflects across vertical axis → negate x-component of direction
+    const fa = (a?: number) => {
+      if (a === undefined) return undefined;
+      if (transform === "rotate180") return (a + 180) % 360;
+      if (transform === "mirrorH") return (180 - a + 360) % 360;
+      if (transform === "mirrorV") return (360 - a) % 360;
+      return a;
+    };
 
     return {
       viewBox,
@@ -159,7 +167,7 @@ function VacuumMapInner({
       charger: charger ? { ...charger, x: fx(charger.x), y: fy(charger.y), a: fa(charger.a) } : undefined,
       vacuum: vacuum ? { ...vacuum, x: fx(vacuum.x), y: fy(vacuum.y), a: fa(vacuum.a) } : undefined,
     };
-  }, [attrs, rotation]);
+  }, [attrs, transform]);
 
   // Callback ref: attach observer when SVG mounts, detach on unmount. No dep on map data.
   const svgRef = useCallback((el: SVGSVGElement | null) => {
@@ -269,7 +277,7 @@ function VacuumMapInner({
         ref={svgRef}
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
         preserveAspectRatio="xMidYMid meet"
-        className="w-full h-auto block"
+        className="w-full h-full block"
         style={{ background: "var(--color-bg-tertiary)" }}
       >
         <defs>
