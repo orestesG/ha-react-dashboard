@@ -218,7 +218,9 @@ function VacuumMapInner({
   // Drag handlers — convert pixel delta to SVG coordinate delta using the current viewBox
   const handlePointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // NOTE: intentionally NO setPointerCapture — pointer capture redirects pointerUp
+    // to the SVG element, which causes the browser to fire `click` on the SVG instead
+    // of on the child rect, breaking room selection entirely.
     didDragRef.current = false;
     dragStart.current = { clientX: e.clientX, clientY: e.clientY, panX: pan?.x ?? 0, panY: pan?.y ?? 0 };
     setIsDragging(true);
@@ -230,7 +232,6 @@ function VacuumMapInner({
     const dx = e.clientX - clientX;
     const dy = e.clientY - clientY;
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) didDragRef.current = true;
-    // Scale pixel delta to SVG units using rendered size
     const vb = mapData.viewBox;
     const vbAspect = vb.w / vb.h;
     const ctxAspect = svgRect.width / svgRect.height;
@@ -242,8 +243,14 @@ function VacuumMapInner({
   const handlePointerUp = () => {
     dragStart.current = null;
     setIsDragging(false);
-    // didDragRef stays true until next pointerDown; click fires synchronously after
-    // pointerUp so it will read the correct ref value before we reset it
+  };
+
+  const handlePointerLeave = () => {
+    // Cancel drag if the pointer leaves the SVG so state doesn't get stuck
+    if (dragStart.current) {
+      dragStart.current = null;
+      setIsDragging(false);
+    }
   };
 
   if (!entity) return (
@@ -301,7 +308,8 @@ function VacuumMapInner({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerLeave}
+        onPointerLeave={handlePointerLeave}
       >
         <defs>
           <pattern id="map-grid" width={dotSpacing} height={dotSpacing} patternUnits="userSpaceOnUse">
