@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 import { useEntity } from "../../hooks/useEntity";
 
@@ -74,39 +74,46 @@ function VacuumMapInner({
   const { entity: suctionEnt } = useEntity(suctionEntityId ?? "");
   const attrs = entity?.attributes as Record<string, unknown> | undefined;
 
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [svgRect, setSvgRect] = useState<DOMRect | null>(null);
+  const [svgRect, setSvgRect] = useState<{ width: number; height: number; left: number; top: number } | null>(null);
   const [popupSuction, setPopupSuction] = useState<string>("");
   const [popupRepeats, setPopupRepeats] = useState(1);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const elementRef = useRef<SVGSVGElement | null>(null);
 
-  const rawRooms = useMemo<Room[]>(() => {
-    const raw = attrs?.rooms as Record<string, Room> | Room[] | undefined;
-    if (!raw) return [];
-    return Array.isArray(raw) ? raw : Object.values(raw);
-  }, [attrs?.rooms]);
+  // Consolidate all map data extraction + flip into a single memo depending only on attrs.
+  // Inline `?? []` expressions outside of useMemo would create new array refs every render,
+  // which previously thrashed downstream memos and triggered an infinite re-render loop.
+  const mapData = useMemo(() => {
+    if (!attrs) return null;
 
-  const rawWalls = (attrs?.walls as Wall[] | undefined) ?? [];
-  const rawNoGo = (attrs?.no_go_areas as Area[] | undefined) ?? [];
-  const rawNoMop = (attrs?.no_mopping_areas as Area[] | undefined) ?? [];
-  const rawActive = (attrs?.active_areas as Area[] | undefined) ?? [];
-  const rawObstacles = (attrs?.obstacles as Obstacle[] | undefined) ?? [];
-  const rawCharger = attrs?.charger_position as Point | undefined;
-  const rawVacuum = attrs?.vacuum_position as Point | undefined;
+    const roomsRaw = attrs.rooms as Record<string, Room> | Room[] | undefined;
+    const rooms: Room[] = !roomsRaw
+      ? []
+      : Array.isArray(roomsRaw)
+      ? roomsRaw
+      : Object.values(roomsRaw);
+    const walls = (attrs.walls as Wall[] | undefined) ?? [];
+    const noGo = (attrs.no_go_areas as Area[] | undefined) ?? [];
+    const noMop = (attrs.no_mopping_areas as Area[] | undefined) ?? [];
+    const active = (attrs.active_areas as Area[] | undefined) ?? [];
+    const obstacles = (attrs.obstacles as Obstacle[] | undefined) ?? [];
+    const charger = attrs.charger_position as Point | undefined;
+    const vacuum = attrs.vacuum_position as Point | undefined;
 
-  const rawBox = useMemo(() => {
     const xs: number[] = [];
     const ys: number[] = [];
-    rawRooms.forEach((r) => { xs.push(r.x0, r.x1); ys.push(r.y0, r.y1); });
-    rawWalls.forEach((w) => { xs.push(w.x0, w.x1); ys.push(w.y0, w.y1); });
-    [...rawNoGo, ...rawNoMop, ...rawActive].forEach((a) => {
+    rooms.forEach((r) => { xs.push(r.x0, r.x1); ys.push(r.y0, r.y1); });
+    walls.forEach((w) => { xs.push(w.x0, w.x1); ys.push(w.y0, w.y1); });
+    [...noGo, ...noMop, ...active].forEach((a) => {
       xs.push(a.x0, a.x1, a.x2, a.x3);
       ys.push(a.y0, a.y1, a.y2, a.y3);
     });
-    if (rawCharger) { xs.push(rawCharger.x); ys.push(rawCharger.y); }
-    if (rawVacuum) { xs.push(rawVacuum.x); ys.push(rawVacuum.y); }
-    rawObstacles.forEach((o) => { xs.push(o.x); ys.push(o.y); });
+    if (charger) { xs.push(charger.x); ys.push(charger.y); }
+    if (vacuum) { xs.push(vacuum.x); ys.push(vacuum.y); }
+    obstacles.forEach((o) => { xs.push(o.x); ys.push(o.y); });
 
     if (xs.length === 0 || ys.length === 0) return null;
+
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
@@ -115,21 +122,18 @@ function VacuumMapInner({
     const h = maxY - minY;
     const padX = w * 0.06;
     const padY = h * 0.06;
-    return { x: minX - padX, y: minY - padY, w: w + padX * 2, h: h + padY * 2 };
-  }, [rawRooms, rawWalls, rawNoGo, rawNoMop, rawActive, rawObstacles, rawCharger, rawVacuum]);
+    const viewBox = { x: minX - padX, y: minY - padY, w: w + padX * 2, h: h + padY * 2 };
 
-  const flipped = useMemo(() => {
-    if (!rawBox) return null;
-    const cx = rawBox.x + rawBox.w / 2;
-    const cy = rawBox.y + rawBox.h / 2;
-    const flip180 = rotation === 180;
-    const fx = (x: number) => (flip180 ? 2 * cx - x : x);
-    const fy = (y: number) => (flip180 ? 2 * cy - y : y);
-    const fa = (a?: number) => (a === undefined ? undefined : flip180 ? (a + 180) % 360 : a);
+    const cx = viewBox.x + viewBox.w / 2;
+    const cy = viewBox.y + viewBox.h / 2;
+    const flip = rotation === 180;
+    const fx = (x: number) => (flip ? 2 * cx - x : x);
+    const fy = (y: number) => (flip ? 2 * cy - y : y);
+    const fa = (a?: number) => (a === undefined ? undefined : flip ? (a + 180) % 360 : a);
 
     return {
-      viewBox: rawBox,
-      rooms: rawRooms.map((r) => ({
+      viewBox,
+      rooms: rooms.map((r) => ({
         ...r,
         x0: Math.min(fx(r.x0), fx(r.x1)),
         x1: Math.max(fx(r.x0), fx(r.x1)),
@@ -138,52 +142,72 @@ function VacuumMapInner({
         x: r.x !== undefined ? fx(r.x) : undefined,
         y: r.y !== undefined ? fy(r.y) : undefined,
       })),
-      walls: rawWalls.map((w) => ({ x0: fx(w.x0), y0: fy(w.y0), x1: fx(w.x1), y1: fy(w.y1) })),
-      noGo: rawNoGo.map((a) => ({
+      walls: walls.map((w2) => ({ x0: fx(w2.x0), y0: fy(w2.y0), x1: fx(w2.x1), y1: fy(w2.y1) })),
+      noGo: noGo.map((a) => ({
         x0: fx(a.x0), y0: fy(a.y0), x1: fx(a.x1), y1: fy(a.y1),
         x2: fx(a.x2), y2: fy(a.y2), x3: fx(a.x3), y3: fy(a.y3),
       })),
-      noMop: rawNoMop.map((a) => ({
+      noMop: noMop.map((a) => ({
         x0: fx(a.x0), y0: fy(a.y0), x1: fx(a.x1), y1: fy(a.y1),
         x2: fx(a.x2), y2: fy(a.y2), x3: fx(a.x3), y3: fy(a.y3),
       })),
-      active: rawActive.map((a) => ({
+      active: active.map((a) => ({
         x0: fx(a.x0), y0: fy(a.y0), x1: fx(a.x1), y1: fy(a.y1),
         x2: fx(a.x2), y2: fy(a.y2), x3: fx(a.x3), y3: fy(a.y3),
       })),
-      obstacles: rawObstacles.map((o) => ({ ...o, x: fx(o.x), y: fy(o.y) })),
-      charger: rawCharger ? { ...rawCharger, x: fx(rawCharger.x), y: fy(rawCharger.y), a: fa(rawCharger.a) } : undefined,
-      vacuum: rawVacuum ? { ...rawVacuum, x: fx(rawVacuum.x), y: fy(rawVacuum.y), a: fa(rawVacuum.a) } : undefined,
+      obstacles: obstacles.map((o) => ({ ...o, x: fx(o.x), y: fy(o.y) })),
+      charger: charger ? { ...charger, x: fx(charger.x), y: fy(charger.y), a: fa(charger.a) } : undefined,
+      vacuum: vacuum ? { ...vacuum, x: fx(vacuum.x), y: fy(vacuum.y), a: fa(vacuum.a) } : undefined,
     };
-  }, [rawBox, rawRooms, rawWalls, rawNoGo, rawNoMop, rawActive, rawObstacles, rawCharger, rawVacuum, rotation]);
+  }, [attrs, rotation]);
 
-  useEffect(() => {
-    if (!svgRef.current) return;
-    const el = svgRef.current;
-    const update = () => setSvgRect(el.getBoundingClientRect());
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-    };
-  }, [flipped]);
-
-  const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
-  const currentSuction = suctionEnt?.state ?? "";
-
-  useEffect(() => {
-    if (selectedRoomId != null && !popupSuction) {
-      setPopupSuction(currentSuction);
+  // Callback ref: attach observer when SVG mounts, detach on unmount. No dep on map data.
+  const svgRef = useCallback((el: SVGSVGElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
     }
+    elementRef.current = el;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setSvgRect((prev) => {
+        if (prev && prev.width === r.width && prev.height === r.height && prev.left === r.left && prev.top === r.top) {
+          return prev;
+        }
+        return { width: r.width, height: r.height, left: r.left, top: r.top };
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    observerRef.current = ro;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Reset popup defaults only when the selection changes.
+  useEffect(() => {
     if (selectedRoomId == null) {
       setPopupRepeats(1);
+      setPopupSuction("");
+    } else {
+      const fallback = (suctionEnt?.state as string | undefined) ?? "";
+      setPopupSuction(fallback);
+      setPopupRepeats(1);
     }
-  }, [selectedRoomId, currentSuction, popupSuction]);
+    // intentionally exclude suctionEnt to avoid resetting on every entity tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoomId]);
+
+  const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
 
   if (!entity) {
     return (
@@ -192,7 +216,7 @@ function VacuumMapInner({
       </div>
     );
   }
-  if (!flipped) {
+  if (!mapData) {
     return (
       <div className={`flex items-center justify-center bg-bg-tertiary text-text-secondary text-xs p-4 ${className}`}>
         Sin mapa guardado
@@ -200,7 +224,7 @@ function VacuumMapInner({
     );
   }
 
-  const { viewBox, rooms, walls, noGo, noMop, active, obstacles, charger, vacuum } = flipped;
+  const { viewBox, rooms, walls, noGo, noMop, active, obstacles, charger, vacuum } = mapData;
   const maxDim = Math.max(viewBox.w, viewBox.h);
   const wallStroke = maxDim * 0.012;
   const obstacleR = maxDim * 0.008;
@@ -212,7 +236,7 @@ function VacuumMapInner({
   const selectedRoom = selectedRoomId != null ? rooms.find((r) => r.room_id === selectedRoomId) : undefined;
 
   let popupStyle: React.CSSProperties | undefined;
-  if (showPopup && selectedRoom && svgRect) {
+  if (showPopup && selectedRoom && svgRect && svgRect.width > 0 && svgRect.height > 0) {
     const vbAspect = viewBox.w / viewBox.h;
     const containerAspect = svgRect.width / svgRect.height;
     let renderedW: number, renderedH: number, offsetX: number, offsetY: number;
@@ -237,8 +261,6 @@ function VacuumMapInner({
   const launchClean = () => {
     if (!onRoomClean || selectedRoomId == null) return;
     onRoomClean(selectedRoomId, { suction: popupSuction || undefined, repeats: popupRepeats });
-    setPopupSuction("");
-    setPopupRepeats(1);
   };
 
   return (
