@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Play, X } from "lucide-react";
 import { useEntity } from "../../hooks/useEntity";
 
@@ -33,6 +33,10 @@ export interface VacuumMapProps {
   rotationDeg?: 0 | 90 | 180 | 270;
   /** Zoom factor: 1 = full map, 2 = 2× zoom in, 0.5 = zoom out */
   zoom?: number;
+  /** Pan offset in SVG coordinate units */
+  pan?: { x: number; y: number };
+  /** Called with the new absolute pan offset after a drag */
+  onPanChange?: (pan: { x: number; y: number }) => void;
   className?: string;
   showLabels?: boolean;
   showPopup?: boolean;
@@ -62,9 +66,11 @@ function VacuumMapInner({
   onRoomClick,
   onRoomClean,
   transform   = "mirrorH",
-  rotationDeg = 0,
-  zoom        = 1,
-  className   = "",
+  rotationDeg  = 0,
+  zoom         = 1,
+  pan,
+  onPanChange,
+  className    = "",
   showLabels  = true,
   showPopup   = false,
 }: VacuumMapProps) {
@@ -75,7 +81,9 @@ function VacuumMapInner({
   const [svgRect,     setSvgRect]     = useState<{ width: number; height: number } | null>(null);
   const [popupSuction,setPopupSuction]= useState<string>("");
   const [popupRepeats,setPopupRepeats]= useState(1);
-  const observerRef = useRef<ResizeObserver | null>(null);
+  const [isDragging,  setIsDragging]  = useState(false);
+  const observerRef  = useRef<ResizeObserver | null>(null);
+  const dragStart    = useRef<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null);
 
   // ── single memo: extract raw data → apply flip+rotation → compute viewBox → apply zoom ──
   const mapData = useMemo(() => {
@@ -168,17 +176,17 @@ function VacuumMapInner({
     const padX = bw * 0.06, padY = bh * 0.06;
     const baseVB = { x: Math.min(...tx) - padX, y: Math.min(...ty) - padY, w: bw + padX * 2, h: bh + padY * 2 };
 
-    // Apply zoom (shrink viewBox around its center)
-    const z  = Math.max(0.25, Math.min(5, zoom ?? 1));
+    // Apply zoom (shrink viewBox around its center), then pan
+    const z  = Math.max(0.1, Math.min(10, zoom ?? 1));
     const vb = {
-      x: baseVB.x + (baseVB.w * (1 - 1 / z)) / 2,
-      y: baseVB.y + (baseVB.h * (1 - 1 / z)) / 2,
+      x: baseVB.x + (baseVB.w * (1 - 1 / z)) / 2 - (pan?.x ?? 0),
+      y: baseVB.y + (baseVB.h * (1 - 1 / z)) / 2 - (pan?.y ?? 0),
       w: baseVB.w / z,
       h: baseVB.h / z,
     };
 
     return { viewBox: vb, rooms: tRooms, walls: tWalls, noGo: tNoGo, noMop: tNoMop, active: tActive, obstacles: tObstacles, charger: tCharger, vacuum: tVacuum };
-  }, [attrs, transform, rotationDeg, zoom]);
+  }, [attrs, transform, rotationDeg, zoom, pan]);
 
   // Callback ref: ResizeObserver on SVG element — no dep on map data to avoid loop
   const svgRef = useCallback((el: SVGSVGElement | null) => {
@@ -204,6 +212,41 @@ function VacuumMapInner({
   }, [selectedRoomId]);
 
   const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
+
+  // Drag handlers — convert pixel delta to SVG coordinate delta using the current viewBox
+  const handlePointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStart.current = { clientX: e.clientX, clientY: e.clientY, panX: pan?.x ?? 0, panY: pan?.y ?? 0 };
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    if (!dragStart.current || !mapData || !svgRect) return;
+    const { clientX, clientY, panX, panY } = dragStart.current;
+    const dx = e.clientX - clientX;
+    const dy = e.clientY - clientY;
+    // Scale pixel delta to SVG units using rendered size
+    const vb = mapData.viewBox;
+    const vbAspect = vb.w / vb.h;
+    const ctxAspect = svgRect.width / svgRect.height;
+    const renderedW = vbAspect > ctxAspect ? svgRect.width : svgRect.height * vbAspect;
+    const renderedH = vbAspect > ctxAspect ? svgRect.width / vbAspect : svgRect.height;
+    // drag right → pan.x increases → viewBox.x decreases → content shifts right ✓
+    onPanChange?.({ x: panX + dx * (vb.w / renderedW), y: panY + dy * (vb.h / renderedH) });
+  };
+
+  const handlePointerUp = (e?: PointerEvent<SVGSVGElement>) => {
+    const wasDrag = dragStart.current && e
+      ? Math.abs(e.clientX - dragStart.current.clientX) > 4 || Math.abs(e.clientY - dragStart.current.clientY) > 4
+      : false;
+    dragStart.current = null;
+    setIsDragging(wasDrag as boolean);
+    // Reset isDragging after one frame so click handlers can check it
+    if (wasDrag) setTimeout(() => setIsDragging(false), 0);
+  };
+
+  const hasDragged = isDragging;
 
   if (!entity) return (
     <div className={`flex items-center justify-center bg-bg-tertiary text-text-secondary text-xs p-4 ${className}`}>
@@ -256,7 +299,11 @@ function VacuumMapInner({
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
         preserveAspectRatio="xMidYMid meet"
         className="w-full h-full block"
-        style={{ background: "var(--color-bg-tertiary)" }}
+        style={{ background: "var(--color-bg-tertiary)", cursor: isDragging ? "grabbing" : "grab", touchAction: "none" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         <defs>
           <pattern id="map-grid" width={dotSpacing} height={dotSpacing} patternUnits="userSpaceOnUse">
@@ -281,8 +328,8 @@ function VacuumMapInner({
                 fill={sel ? "rgba(59,130,246,0.35)" : ROOM_FILLS[ci]}
                 stroke={sel ? "rgb(37 99 235)" : ROOM_STROKES[ci]}
                 strokeWidth={sel ? wallStroke * 0.8 : wallStroke * 0.4}
-                onClick={() => onRoomClick?.(id)}
-                style={{ cursor: onRoomClick ? "pointer" : "default" }}
+                onClick={() => !hasDragged && onRoomClick?.(id)}
+                style={{ cursor: onRoomClick ? (isDragging ? "grabbing" : "pointer") : "default" }}
               />
             );
           })}

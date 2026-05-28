@@ -17,7 +17,7 @@ const MAP_ENTITY    = "camera.xiaomi_robot_vacuum_x20_map";
 const PRESETS_LS_KEY = "vacuum-presets-v1";
 const VIEW_LS_KEY    = "vacuum-view-v1";
 
-const ZOOM_STEPS = [0.75, 1, 1.5, 2, 3] as const;
+const ZOOM_STEPS = [0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3] as const;
 type RotDeg = 0 | 90 | 180 | 270;
 
 interface VacuumCardProps {
@@ -101,6 +101,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const [mapZoom, setMapZoom] = useState<number>(() => {
     try { return JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").zoom ?? 1; } catch { return 1; }
   });
+  const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     try { localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
@@ -110,8 +111,8 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
     try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify({ rotation: mapRotation, zoom: mapZoom })); } catch { /* ignore */ }
   }, [mapRotation, mapZoom]);
 
-  const rotateCW  = () => setMapRotation(r => ((r + 90)  % 360) as RotDeg);
-  const rotateCCW = () => setMapRotation(r => ((r - 90 + 360) % 360) as RotDeg);
+  const rotateCW  = () => { setMapRotation(r => ((r + 90)  % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
+  const rotateCCW = () => { setMapRotation(r => ((r - 90 + 360) % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
   const zoomIn    = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z; });
   const zoomOut   = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i > 0 ? ZOOM_STEPS[i - 1] : z; });
 
@@ -288,6 +289,8 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             onRoomClean={launchRoomClean}
             rotationDeg={mapRotation}
             zoom={mapZoom}
+            pan={mapPan}
+            onPanChange={setMapPan}
             showPopup
             showLabels={false}
           />
@@ -364,6 +367,8 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
               onRoomClean={launchRoomClean}
               rotationDeg={mapRotation}
               zoom={mapZoom}
+              pan={mapPan}
+              onPanChange={setMapPan}
               showPopup
               showLabels={true}
             />
