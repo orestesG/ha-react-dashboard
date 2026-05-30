@@ -92,7 +92,7 @@ function SlotRow({
             aria-label={slot.enabled ? "Deshabilitar" : "Habilitar"}
           >
             <div className={`w-12 h-6 rounded-full transition-colors relative ${slot.enabled ? "bg-accent-blue" : "bg-bg-tertiary border border-border-main"}`}>
-              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${slot.enabled ? "translate-x-6" : "translate-x-1"}`} />
+              <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${slot.enabled ? "translate-x-6" : "translate-x-0"}`} />
             </div>
             <span className={`text-sm font-medium ${slot.enabled ? "text-text-primary" : "text-text-secondary"}`}>
               {slot.enabled ? "Activo" : "Pausado"}

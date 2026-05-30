@@ -276,23 +276,22 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="flex gap-2">
           {isCleaning ? (
             <button onClick={pause}
-              className="flex items-center gap-2 px-4 h-11 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium active:scale-95 transition-all">
+              className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium active:scale-95 transition-all">
               <Pause size={16} /> Pausar
             </button>
           ) : (
             <button onClick={start}
-              className="flex items-center gap-2 px-4 h-11 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium active:scale-95 transition-all">
+              className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium active:scale-95 transition-all">
               <Play size={16} /> Iniciar
             </button>
           )}
           <button onClick={dock}
-            className="flex items-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium active:scale-95 transition-all">
+            className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium active:scale-95 transition-all">
             <Home size={16} /> Base
           </button>
         </div>
 
-        <div className="space-y-2 pt-1 border-t border-border-main">
-          <p className="text-xs text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
+        <div className="space-y-2 pt-3 border-t border-border-main">
           <PresetRow presetKey="full"  icon={<Sparkles size={15} className="text-accent-blue" />} label="Aspirado + Mopa" />
           <PresetRow presetKey="sweep" icon={<Wind size={15} className="text-accent-blue" />}     label="Solo aspirado" />
 
