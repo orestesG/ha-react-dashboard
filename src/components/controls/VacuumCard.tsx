@@ -35,16 +35,16 @@ function pickClosest(want: string, options: string[]): string {
 
 function Chips({ options, current, onSelect }: { options: string[]; current: string; onSelect: (v: string) => void }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((opt) => {
         const active = opt === current;
         return (
           <button
             key={opt}
             onClick={() => onSelect(opt)}
-            className={`px-2 py-0.5 rounded text-[10px] font-medium capitalize transition-all ${
+            className={`h-9 px-3 rounded-lg text-xs font-medium capitalize transition-all active:scale-95 ${
               active
-                ? "bg-accent-blue/20 text-accent-blue"
+                ? "bg-accent-blue/20 text-accent-blue ring-1 ring-accent-blue/30"
                 : "bg-bg-secondary text-text-secondary hover:text-text-primary"
             }`}
           >
@@ -207,19 +207,19 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="flex gap-1.5">
           <button
             onClick={() => runPreset(presets[presetKey])}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-accent-blue/10 hover:text-accent-blue transition-all"
+            className="flex-1 flex items-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-accent-blue/10 hover:text-accent-blue active:scale-95 transition-all"
           >
             {icon}
             <span className="text-left">{label}</span>
           </button>
           <button
             onClick={() => setExpandedPreset(expanded ? null : presetKey)}
-            className={`px-2.5 rounded-xl transition-all ${
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 ${
               expanded ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"
             }`}
             aria-label="Configurar preset"
           >
-            <Settings2 size={14} />
+            <Settings2 size={16} />
           </button>
         </div>
         {expanded && renderPresetSettings(presetKey)}
@@ -258,19 +258,17 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             showPopup
             showLabels={false}
           />
-          {/* Map controls overlay */}
+          {/* Map controls overlay — touch-friendly 40px targets */}
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-            {/* Rotate */}
-            <div className="flex gap-1 pointer-events-auto">
-              <button onClick={rotateCCW} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar izquierda"><RotateCcw size={13} /></button>
-              <button onClick={rotateCW}  className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar derecha"><RotateCw  size={13} /></button>
+            <div className="flex gap-1.5 pointer-events-auto">
+              <button onClick={rotateCCW} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Rotar izquierda"><RotateCcw size={16} /></button>
+              <button onClick={rotateCW}  className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Rotar derecha"><RotateCw  size={16} /></button>
             </div>
-            {/* Zoom + expand */}
-            <div className="flex gap-1 pointer-events-auto">
-              <button onClick={zoomOut} disabled={mapZoom <= ZOOM_STEPS[0]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Alejar"><ZoomOut size={13} /></button>
-              <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-[10px] font-medium self-center">{mapZoom === 1 ? "1×" : `${mapZoom}×`}</span>
-              <button onClick={zoomIn}  disabled={mapZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Acercar"><ZoomIn  size={13} /></button>
-              <button onClick={() => setMapOpen(true)} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Ampliar mapa"><Maximize2 size={13} /></button>
+            <div className="flex gap-1.5 pointer-events-auto">
+              <button onClick={zoomOut} disabled={mapZoom <= ZOOM_STEPS[0]} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white disabled:opacity-30 active:bg-black/80 transition-colors" aria-label="Alejar"><ZoomOut size={16} /></button>
+              <span className="px-2 h-10 flex items-center rounded-xl bg-black/55 text-white text-xs font-semibold">{mapZoom === 1 ? "1×" : `${mapZoom}×`}</span>
+              <button onClick={zoomIn}  disabled={mapZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white disabled:opacity-30 active:bg-black/80 transition-colors" aria-label="Acercar"><ZoomIn  size={16} /></button>
+              <button onClick={() => setMapOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Ampliar mapa"><Maximize2 size={16} /></button>
             </div>
           </div>
         </div>
@@ -278,25 +276,25 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="flex gap-2">
           {isCleaning ? (
             <button onClick={pause}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium hover:bg-accent-yellow/30 transition-all">
-              <Pause size={14} /> Pausar
+              className="flex items-center gap-2 px-4 h-11 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium active:scale-95 transition-all">
+              <Pause size={16} /> Pausar
             </button>
           ) : (
             <button onClick={start}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium hover:bg-accent-green/30 transition-all">
-              <Play size={14} /> Iniciar
+              className="flex items-center gap-2 px-4 h-11 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium active:scale-95 transition-all">
+              <Play size={16} /> Iniciar
             </button>
           )}
           <button onClick={dock}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium hover:text-text-primary transition-all">
-            <Home size={14} /> Base
+            className="flex items-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium active:scale-95 transition-all">
+            <Home size={16} /> Base
           </button>
         </div>
 
         <div className="space-y-2 pt-1 border-t border-border-main">
-          <p className="text-[10px] text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
-          <PresetRow presetKey="full"  icon={<Sparkles size={14} className="text-accent-blue" />} label="Aspirado + Mopa" />
-          <PresetRow presetKey="sweep" icon={<Wind size={14} className="text-accent-blue" />}     label="Solo aspirado" />
+          <p className="text-xs text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
+          <PresetRow presetKey="full"  icon={<Sparkles size={15} className="text-accent-blue" />} label="Aspirado + Mopa" />
+          <PresetRow presetKey="sweep" icon={<Wind size={15} className="text-accent-blue" />}     label="Solo aspirado" />
 
           <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary">
             <Calendar size={14} className="text-accent-blue shrink-0" />
@@ -309,10 +307,10 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             </div>
             <button
               onClick={() => setScheduleOpen(true)}
-              className="p-1.5 rounded-lg bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors shrink-0"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-bg-secondary text-text-secondary hover:text-text-primary active:scale-95 transition-colors shrink-0"
               aria-label="Editar horarios"
             >
-              <Settings2 size={13} />
+              <Settings2 size={16} />
             </button>
           </div>
         </div>
