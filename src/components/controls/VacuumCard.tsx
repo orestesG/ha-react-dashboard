@@ -4,6 +4,7 @@ import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { useVacuumStore } from "../../store/vacuum-store";
 import type { PresetConfig, RotDeg } from "../../store/vacuum-store";
+import { VacuumScheduleModal } from "./VacuumScheduleModal";
 import { callService } from "../../lib/ha-client";
 import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import {
@@ -64,12 +65,13 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const connection = useHAStore((s) => s.connection);
 
   const [mapOpen, setMapOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
   const [expandedPreset, setExpandedPreset] = useState<"full" | "sweep" | null>(null);
   const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Presets + view persisted in HA storage via vacuum-store
-  const { presets, view, setPresets, setView } = useVacuumStore();
+  // Presets + view + slots persisted in HA storage via vacuum-store
+  const { presets, view, slots, setPresets, setView, setSlots, syncScheduleHelpersToHA } = useVacuumStore();
   const mapRotation = view.rotation;
   const mapZoom     = view.zoom;
 
@@ -296,17 +298,39 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           <PresetRow presetKey="full"  icon={<Sparkles size={14} className="text-accent-blue" />} label="Aspirado + Mopa" />
           <PresetRow presetKey="sweep" icon={<Wind size={14} className="text-accent-blue" />}     label="Solo aspirado" />
 
-          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary text-text-secondary text-sm">
+          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary">
             <Calendar size={14} className="text-accent-blue shrink-0" />
-            <span className="text-left flex-1 text-text-primary font-medium">Programada</span>
-            {nextEventLabel ? (
-              <span className="text-xs text-text-secondary">{nextEventLabel}</span>
-            ) : (
-              <span className="text-xs text-text-secondary">Sin programar</span>
-            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">Programada</p>
+              <p className="text-xs text-text-secondary truncate">
+                {slots.filter(s => s.enabled).length} horario{slots.filter(s => s.enabled).length !== 1 ? "s" : ""}
+                {nextEventLabel ? ` · próx: ${nextEventLabel}` : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => setScheduleOpen(true)}
+              className="p-1.5 rounded-lg bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors shrink-0"
+              aria-label="Editar horarios"
+            >
+              <Settings2 size={13} />
+            </button>
           </div>
         </div>
       </div>
+
+      {scheduleOpen && createPortal(
+        <VacuumScheduleModal
+          slots={slots}
+          suctionOptions={suctionOptions}
+          onClose={() => setScheduleOpen(false)}
+          onSave={async (newSlots) => {
+            setSlots(newSlots);
+            if (connection) await syncScheduleHelpersToHA(connection);
+            setScheduleOpen(false);
+          }}
+        />,
+        document.body
+      )}
 
       {mapOpen && createPortal(
         <div
