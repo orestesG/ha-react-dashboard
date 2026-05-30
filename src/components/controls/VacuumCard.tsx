@@ -2,8 +2,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
-import { useVacuumStore, DEFAULT_PRESETS } from "../../store/vacuum-store";
-import type { PresetConfig, PresetsState, RotDeg } from "../../store/vacuum-store";
+import { useVacuumStore } from "../../store/vacuum-store";
+import type { PresetConfig, RotDeg } from "../../store/vacuum-store";
 import { callService } from "../../lib/ha-client";
 import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import {
