@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
+import { useVacuumStore } from "../../store/vacuum-store";
+import type { PresetConfig, RotDeg } from "../../store/vacuum-store";
+import { VacuumScheduleModal } from "./VacuumScheduleModal";
 import { callService } from "../../lib/ha-client";
 import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import {
@@ -9,44 +12,16 @@ import {
   VACUUM_SUCTION_LEVEL_ENTITY,
   VACUUM_WATER_VOLUME_ENTITY,
 } from "../../dashboard.config";
-
-const SCHEDULE_ENTITY = "schedule.limpieza_robot";
 import { VacuumMap } from "../widgets/VacuumMap";
 
-const MAP_ENTITY    = "camera.xiaomi_robot_vacuum_x20_map";
-const PRESETS_LS_KEY = "vacuum-presets-v1";
-const VIEW_LS_KEY    = "vacuum-view-v1";
+const SCHEDULE_ENTITY = "schedule.limpieza_robot";
+const MAP_ENTITY      = "camera.xiaomi_robot_vacuum_x20_map";
 
 const ZOOM_STEPS = [0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3] as const;
-type RotDeg = 0 | 90 | 180 | 270;
 
 interface VacuumCardProps {
   entityId: string;
   name?: string;
-}
-
-interface PresetConfig {
-  mode: string;
-  suction: string;
-  water: string;
-}
-
-interface PresetsState {
-  full: PresetConfig;
-  sweep: PresetConfig;
-}
-
-const DEFAULT_PRESETS: PresetsState = {
-  full:  { mode: "mopping_after_sweeping", suction: "standard", water: "" },
-  sweep: { mode: "sweeping",               suction: "standard", water: "" },
-};
-
-function loadPresets(): PresetsState {
-  try {
-    const raw = localStorage.getItem(PRESETS_LS_KEY);
-    if (raw) return { ...DEFAULT_PRESETS, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return DEFAULT_PRESETS;
 }
 
 function pickClosest(want: string, options: string[]): string {
@@ -60,16 +35,16 @@ function pickClosest(want: string, options: string[]): string {
 
 function Chips({ options, current, onSelect }: { options: string[]; current: string; onSelect: (v: string) => void }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((opt) => {
         const active = opt === current;
         return (
           <button
             key={opt}
             onClick={() => onSelect(opt)}
-            className={`px-2 py-0.5 rounded text-[10px] font-medium capitalize transition-all ${
+            className={`h-9 px-3 rounded-lg text-xs font-medium capitalize transition-all active:scale-95 ${
               active
-                ? "bg-accent-blue/20 text-accent-blue"
+                ? "bg-accent-blue/20 text-accent-blue ring-1 ring-accent-blue/30"
                 : "bg-bg-secondary text-text-secondary hover:text-text-primary"
             }`}
           >
@@ -90,31 +65,20 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const connection = useHAStore((s) => s.connection);
 
   const [mapOpen, setMapOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
   const [expandedPreset, setExpandedPreset] = useState<"full" | "sweep" | null>(null);
-  const [presets, setPresets] = useState<PresetsState>(loadPresets);
-
-  // View preferences — persisted
-  const [mapRotation, setMapRotation] = useState<RotDeg>(() => {
-    try { return (JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").rotation ?? 0) as RotDeg; } catch { return 0; }
-  });
-  const [mapZoom, setMapZoom] = useState<number>(() => {
-    try { return JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").zoom ?? 1; } catch { return 1; }
-  });
   const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  useEffect(() => {
-    try { localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
-  }, [presets]);
+  // Presets + view + slots persisted in HA storage via vacuum-store
+  const { presets, view, slots, setPresets, setView, setSlots, syncScheduleHelpersToHA } = useVacuumStore();
+  const mapRotation = view.rotation;
+  const mapZoom     = view.zoom;
 
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify({ rotation: mapRotation, zoom: mapZoom })); } catch { /* ignore */ }
-  }, [mapRotation, mapZoom]);
-
-  const rotateCW  = () => { setMapRotation(r => ((r + 90)  % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
-  const rotateCCW = () => { setMapRotation(r => ((r - 90 + 360) % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
-  const zoomIn    = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z; });
-  const zoomOut   = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i > 0 ? ZOOM_STEPS[i - 1] : z; });
+  const rotateCW  = () => { setView({ ...view, rotation: ((mapRotation + 90)  % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
+  const rotateCCW = () => { setView({ ...view, rotation: ((mapRotation - 90 + 360) % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
+  const zoomIn    = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i < ZOOM_STEPS.length - 1) setView({ ...view, zoom: ZOOM_STEPS[i + 1] }); };
+  const zoomOut   = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i > 0) setView({ ...view, zoom: ZOOM_STEPS[i - 1] }); };
 
   const state = entity?.state;
   const battery = entity?.attributes?.battery as number | undefined;
@@ -161,7 +125,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   };
 
   const updatePreset = (key: "full" | "sweep", patch: Partial<PresetConfig>) => {
-    setPresets((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+    setPresets({ ...presets, [key]: { ...presets[key], ...patch } });
   };
 
   const launchRoomClean = (segmentId: number, options: { suction?: string; repeats: number }) => {
@@ -243,19 +207,19 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="flex gap-1.5">
           <button
             onClick={() => runPreset(presets[presetKey])}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-accent-blue/10 hover:text-accent-blue transition-all"
+            className="flex-1 flex items-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-accent-blue/10 hover:text-accent-blue active:scale-95 transition-all"
           >
             {icon}
             <span className="text-left">{label}</span>
           </button>
           <button
             onClick={() => setExpandedPreset(expanded ? null : presetKey)}
-            className={`px-2.5 rounded-xl transition-all ${
+            className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 ${
               expanded ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"
             }`}
             aria-label="Configurar preset"
           >
-            <Settings2 size={14} />
+            <Settings2 size={16} />
           </button>
         </div>
         {expanded && renderPresetSettings(presetKey)}
@@ -294,19 +258,17 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
             showPopup
             showLabels={false}
           />
-          {/* Map controls overlay */}
+          {/* Map controls overlay — touch-friendly 40px targets */}
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-            {/* Rotate */}
-            <div className="flex gap-1 pointer-events-auto">
-              <button onClick={rotateCCW} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar izquierda"><RotateCcw size={13} /></button>
-              <button onClick={rotateCW}  className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Rotar derecha"><RotateCw  size={13} /></button>
+            <div className="flex gap-1.5 pointer-events-auto">
+              <button onClick={rotateCCW} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Rotar izquierda"><RotateCcw size={16} /></button>
+              <button onClick={rotateCW}  className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Rotar derecha"><RotateCw  size={16} /></button>
             </div>
-            {/* Zoom + expand */}
-            <div className="flex gap-1 pointer-events-auto">
-              <button onClick={zoomOut} disabled={mapZoom <= ZOOM_STEPS[0]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Alejar"><ZoomOut size={13} /></button>
-              <span className="px-2 py-1 rounded-lg bg-black/50 text-white text-[10px] font-medium self-center">{mapZoom === 1 ? "1×" : `${mapZoom}×`}</span>
-              <button onClick={zoomIn}  disabled={mapZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 disabled:opacity-30 transition-colors" aria-label="Acercar"><ZoomIn  size={13} /></button>
-              <button onClick={() => setMapOpen(true)} className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors" aria-label="Ampliar mapa"><Maximize2 size={13} /></button>
+            <div className="flex gap-1.5 pointer-events-auto">
+              <button onClick={zoomOut} disabled={mapZoom <= ZOOM_STEPS[0]} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white disabled:opacity-30 active:bg-black/80 transition-colors" aria-label="Alejar"><ZoomOut size={16} /></button>
+              <span className="px-2 h-10 flex items-center rounded-xl bg-black/55 text-white text-xs font-semibold">{mapZoom === 1 ? "1×" : `${mapZoom}×`}</span>
+              <button onClick={zoomIn}  disabled={mapZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white disabled:opacity-30 active:bg-black/80 transition-colors" aria-label="Acercar"><ZoomIn  size={16} /></button>
+              <button onClick={() => setMapOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/55 text-white active:bg-black/80 transition-colors" aria-label="Ampliar mapa"><Maximize2 size={16} /></button>
             </div>
           </div>
         </div>
@@ -314,37 +276,58 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
         <div className="flex gap-2">
           {isCleaning ? (
             <button onClick={pause}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium hover:bg-accent-yellow/30 transition-all">
-              <Pause size={14} /> Pausar
+              className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-accent-yellow/20 text-accent-yellow text-sm font-medium active:scale-95 transition-all">
+              <Pause size={16} /> Pausar
             </button>
           ) : (
             <button onClick={start}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium hover:bg-accent-green/30 transition-all">
-              <Play size={14} /> Iniciar
+              className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-accent-green/20 text-accent-green text-sm font-medium active:scale-95 transition-all">
+              <Play size={16} /> Iniciar
             </button>
           )}
           <button onClick={dock}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium hover:text-text-primary transition-all">
-            <Home size={14} /> Base
+            className="flex-1 flex items-center justify-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary text-text-secondary text-sm font-medium active:scale-95 transition-all">
+            <Home size={16} /> Base
           </button>
         </div>
 
-        <div className="space-y-2 pt-1 border-t border-border-main">
-          <p className="text-[10px] text-text-secondary uppercase tracking-wider pt-2">Limpieza rápida</p>
-          <PresetRow presetKey="full"  icon={<Sparkles size={14} className="text-accent-blue" />} label="Aspirado + Mopa" />
-          <PresetRow presetKey="sweep" icon={<Wind size={14} className="text-accent-blue" />}     label="Solo aspirado" />
+        <div className="space-y-2 pt-3 border-t border-border-main">
+          <PresetRow presetKey="full"  icon={<Sparkles size={15} className="text-accent-blue" />} label="Aspirado + Mopa" />
+          <PresetRow presetKey="sweep" icon={<Wind size={15} className="text-accent-blue" />}     label="Solo aspirado" />
 
-          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary text-text-secondary text-sm">
+          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary">
             <Calendar size={14} className="text-accent-blue shrink-0" />
-            <span className="text-left flex-1 text-text-primary font-medium">Programada</span>
-            {nextEventLabel ? (
-              <span className="text-xs text-text-secondary">{nextEventLabel}</span>
-            ) : (
-              <span className="text-xs text-text-secondary">Sin programar</span>
-            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">Programada</p>
+              <p className="text-xs text-text-secondary truncate">
+                {slots.filter(s => s.enabled).length} horario{slots.filter(s => s.enabled).length !== 1 ? "s" : ""}
+                {nextEventLabel ? ` · próx: ${nextEventLabel}` : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => setScheduleOpen(true)}
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-bg-secondary text-text-secondary hover:text-text-primary active:scale-95 transition-colors shrink-0"
+              aria-label="Editar horarios"
+            >
+              <Settings2 size={16} />
+            </button>
           </div>
         </div>
       </div>
+
+      {scheduleOpen && createPortal(
+        <VacuumScheduleModal
+          slots={slots}
+          suctionOptions={suctionOptions}
+          onClose={() => setScheduleOpen(false)}
+          onSave={async (newSlots) => {
+            setSlots(newSlots);
+            if (connection) await syncScheduleHelpersToHA(connection);
+            setScheduleOpen(false);
+          }}
+        />,
+        document.body
+      )}
 
       {mapOpen && createPortal(
         <div
