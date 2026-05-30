@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
+import { useVacuumStore, DEFAULT_PRESETS } from "../../store/vacuum-store";
+import type { PresetConfig, PresetsState, RotDeg } from "../../store/vacuum-store";
 import { callService } from "../../lib/ha-client";
 import { Bot, Play, Pause, Home, Maximize2, X, Settings2, Sparkles, Wind, Calendar, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import {
@@ -9,44 +11,16 @@ import {
   VACUUM_SUCTION_LEVEL_ENTITY,
   VACUUM_WATER_VOLUME_ENTITY,
 } from "../../dashboard.config";
-
-const SCHEDULE_ENTITY = "schedule.limpieza_robot";
 import { VacuumMap } from "../widgets/VacuumMap";
 
-const MAP_ENTITY    = "camera.xiaomi_robot_vacuum_x20_map";
-const PRESETS_LS_KEY = "vacuum-presets-v1";
-const VIEW_LS_KEY    = "vacuum-view-v1";
+const SCHEDULE_ENTITY = "schedule.limpieza_robot";
+const MAP_ENTITY      = "camera.xiaomi_robot_vacuum_x20_map";
 
 const ZOOM_STEPS = [0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3] as const;
-type RotDeg = 0 | 90 | 180 | 270;
 
 interface VacuumCardProps {
   entityId: string;
   name?: string;
-}
-
-interface PresetConfig {
-  mode: string;
-  suction: string;
-  water: string;
-}
-
-interface PresetsState {
-  full: PresetConfig;
-  sweep: PresetConfig;
-}
-
-const DEFAULT_PRESETS: PresetsState = {
-  full:  { mode: "mopping_after_sweeping", suction: "standard", water: "" },
-  sweep: { mode: "sweeping",               suction: "standard", water: "" },
-};
-
-function loadPresets(): PresetsState {
-  try {
-    const raw = localStorage.getItem(PRESETS_LS_KEY);
-    if (raw) return { ...DEFAULT_PRESETS, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
-  return DEFAULT_PRESETS;
 }
 
 function pickClosest(want: string, options: string[]): string {
@@ -92,29 +66,17 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const [mapOpen, setMapOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
   const [expandedPreset, setExpandedPreset] = useState<"full" | "sweep" | null>(null);
-  const [presets, setPresets] = useState<PresetsState>(loadPresets);
-
-  // View preferences — persisted
-  const [mapRotation, setMapRotation] = useState<RotDeg>(() => {
-    try { return (JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").rotation ?? 0) as RotDeg; } catch { return 0; }
-  });
-  const [mapZoom, setMapZoom] = useState<number>(() => {
-    try { return JSON.parse(localStorage.getItem(VIEW_LS_KEY) ?? "{}").zoom ?? 1; } catch { return 1; }
-  });
   const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  useEffect(() => {
-    try { localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(presets)); } catch { /* ignore */ }
-  }, [presets]);
+  // Presets + view persisted in HA storage via vacuum-store
+  const { presets, view, setPresets, setView } = useVacuumStore();
+  const mapRotation = view.rotation;
+  const mapZoom     = view.zoom;
 
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_LS_KEY, JSON.stringify({ rotation: mapRotation, zoom: mapZoom })); } catch { /* ignore */ }
-  }, [mapRotation, mapZoom]);
-
-  const rotateCW  = () => { setMapRotation(r => ((r + 90)  % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
-  const rotateCCW = () => { setMapRotation(r => ((r - 90 + 360) % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
-  const zoomIn    = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i < ZOOM_STEPS.length - 1 ? ZOOM_STEPS[i + 1] : z; });
-  const zoomOut   = () => setMapZoom(z => { const i = ZOOM_STEPS.indexOf(z as typeof ZOOM_STEPS[number]); return i > 0 ? ZOOM_STEPS[i - 1] : z; });
+  const rotateCW  = () => { setView({ ...view, rotation: ((mapRotation + 90)  % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
+  const rotateCCW = () => { setView({ ...view, rotation: ((mapRotation - 90 + 360) % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
+  const zoomIn    = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i < ZOOM_STEPS.length - 1) setView({ ...view, zoom: ZOOM_STEPS[i + 1] }); };
+  const zoomOut   = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i > 0) setView({ ...view, zoom: ZOOM_STEPS[i - 1] }); };
 
   const state = entity?.state;
   const battery = entity?.attributes?.battery as number | undefined;
@@ -161,7 +123,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   };
 
   const updatePreset = (key: "full" | "sweep", patch: Partial<PresetConfig>) => {
-    setPresets((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+    setPresets({ ...presets, [key]: { ...presets[key], ...patch } });
   };
 
   const launchRoomClean = (segmentId: number, options: { suction?: string; repeats: number }) => {

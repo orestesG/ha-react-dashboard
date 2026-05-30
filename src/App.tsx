@@ -7,6 +7,7 @@ import { useHA } from "./hooks/useHA";
 import { useHAStore } from "./store/ha-store";
 import { useLayoutStore } from "./store/layout-store";
 import { useFavoritesStore } from "./store/favorites-store";
+import { useVacuumStore } from "./store/vacuum-store";
 import { Living } from "./areas/Living";
 import { Cocina } from "./areas/Cocina";
 import { Oficina } from "./areas/Oficina";
@@ -59,12 +60,15 @@ function App({ panelMode = false }: AppProps) {
   const { tabs, activeTabId, setActiveTab, editMode, setLayouts, toggleEditMode, resetLayouts, syncFromHA, haLoaded: layoutLoaded } = useLayoutStore();
   const syncFavoritesFromHA = useFavoritesStore((s) => s.syncFromHA);
   const favoritesLoaded = useFavoritesStore((s) => s.haLoaded);
-  const haLoading = isConnected && (!layoutLoaded || !favoritesLoaded);
+  const syncVacuumFromHA = useVacuumStore((s) => s.syncFromHA);
+  const vacuumLoaded = useVacuumStore((s) => s.haLoaded);
+  const haLoading = isConnected && (!layoutLoaded || !favoritesLoaded || !vacuumLoaded);
 
   useEffect(() => {
     if (connection) {
       void syncFromHA(connection);
       void syncFavoritesFromHA(connection);
+      void syncVacuumFromHA(connection);
     }
   }, [connection]); // eslint-disable-line react-hooks/exhaustive-deps
   const { width, containerRef } = useContainerWidth({ measureBeforeMount: true });
