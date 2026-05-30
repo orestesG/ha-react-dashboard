@@ -48,10 +48,13 @@ export interface ScheduleSlot {
   mopPasses?:       number
 }
 
+const SLOTS_VERSION = 2  // bump when DEFAULT_SLOTS changes to force migration
+
 interface Persisted {
-  presets: PresetsState
-  view:    ViewState
-  slots:   ScheduleSlot[]
+  presets:      PresetsState
+  view:         ViewState
+  slots:        ScheduleSlot[]
+  slotsVersion?: number
 }
 
 export const DEFAULT_PRESETS: PresetsState = {
@@ -62,8 +65,8 @@ export const DEFAULT_PRESETS: PresetsState = {
 export const DEFAULT_VIEW: ViewState = { rotation: 0, zoom: 1 }
 
 export const DEFAULT_SLOTS: ScheduleSlot[] = [
-  { id: 'default-full-weekday',  days: [0,1,2,3,4], time: '09:00', preset: 'full',  enabled: true },
-  { id: 'default-full-saturday', days: [5],          time: '10:00', preset: 'full',  enabled: true },
+  { id: 'default-full-09', days: [0,1,2,3,4], time: '09:00', preset: 'full', enabled: true },
+  { id: 'default-full-15', days: [0,1,2,3,4], time: '15:00', preset: 'full', enabled: true },
 ]
 
 function getHAConn(): HAConn | null {
@@ -73,7 +76,7 @@ function getHAConn(): HAConn | null {
 function saveToHA(data: Persisted): void {
   const conn = getHAConn()
   if (!conn) return
-  void conn.sendMessagePromise({ type: 'frontend/set_user_data', key: HA_STORAGE_KEY, value: data })
+  void conn.sendMessagePromise({ type: 'frontend/set_user_data', key: HA_STORAGE_KEY, value: { ...data, slotsVersion: SLOTS_VERSION } })
     .catch(() => { /* ignore — saves will retry on next change */ })
 }
 
@@ -185,10 +188,14 @@ export const useVacuumStore = create<VacuumState>((set, get) => ({
       const haData  = (result as { value: Persisted | null }).value
 
       if (haData?.presets) {
+        // If slots were saved with an older version, reset to current defaults
+        const slots = (haData.slotsVersion ?? 0) >= SLOTS_VERSION
+          ? (haData.slots ?? DEFAULT_SLOTS)
+          : DEFAULT_SLOTS
         set({
           presets: haData.presets,
-          view:    haData.view  ?? DEFAULT_VIEW,
-          slots:   haData.slots ?? DEFAULT_SLOTS,
+          view:    haData.view ?? DEFAULT_VIEW,
+          slots,
         })
       } else {
         // First run: migrate localStorage if present, then clear it
