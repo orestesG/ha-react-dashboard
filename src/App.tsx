@@ -22,6 +22,7 @@ import { SceneButtons } from "./components/widgets/SceneButtons";
 import { VacuumCard } from "./components/controls/VacuumCard";
 import { FavoritesCard } from "./components/widgets/FavoritesCard";
 import { WeatherChip } from "./components/widgets/WeatherChip";
+import { EnergyChip } from "./components/widgets/EnergyChip";
 import { CommuteCard } from "./components/widgets/CommuteCard";
 import { CommuteChip } from "./components/widgets/CommuteChip";
 import { ExchangeRateCard } from "./components/widgets/ExchangeRateCard";
@@ -96,8 +97,8 @@ function App({ panelMode = false }: AppProps) {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary p-4 md:p-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+    <div className="min-h-screen bg-bg-primary px-4 md:px-6 pb-4 md:pb-6">
+      <header className="sticky top-0 z-30 bg-bg-primary -mx-4 md:-mx-6 px-4 md:px-6 pt-4 md:pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h1 className="text-text-primary text-xl md:text-2xl font-semibold">
             Dashboard
@@ -106,8 +107,9 @@ function App({ panelMode = false }: AppProps) {
             <p className="text-text-secondary text-sm">{entityCount} entidades</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap justify-end gap-3">
           <WeatherChip />
+          <EnergyChip />
           <CommuteChip routes={commuteRoutes} personEntityId={PERSON_ENTITY} />
           <SceneButtons scenes={scenes} />
 

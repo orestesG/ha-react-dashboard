@@ -18,10 +18,6 @@ const DEFAULT_MAIN_LG: LayoutItem[] = [
   { i: 'bano',      x: 2, y: 4,  w: 1, h: 2 },
   { i: 'balcon',    x: 2, y: 6,  w: 1, h: 2 },
   { i: 'pasillo',   x: 3, y: 6,  w: 1, h: 3 },
-  { i: 'weather',   x: 0, y: 10, w: 4, h: 3 },
-  { i: 'energy',    x: 0, y: 13, w: 2, h: 5 },
-  { i: 'battery',   x: 2, y: 13, w: 2, h: 5 },
-  { i: 'commute',   x: 0, y: 18, w: 2, h: 4 },
 ]
 
 const DEFAULT_MAIN_MD: LayoutItem[] = [
@@ -34,10 +30,6 @@ const DEFAULT_MAIN_MD: LayoutItem[] = [
   { i: 'pasillo',   x: 1, y: 13, w: 1, h: 3 },
   { i: 'vacuum',    x: 0, y: 14, w: 1, h: 3 },
   { i: 'balcon',    x: 0, y: 17, w: 1, h: 2 },
-  { i: 'weather',   x: 0, y: 19, w: 2, h: 3 },
-  { i: 'energy',    x: 0, y: 22, w: 1, h: 5 },
-  { i: 'battery',   x: 1, y: 22, w: 1, h: 5 },
-  { i: 'commute',   x: 0, y: 27, w: 2, h: 4 },
 ]
 
 const DEFAULT_MAIN_SM: LayoutItem[] = DEFAULT_MAIN_LG.map((item, idx) => ({
@@ -54,6 +46,26 @@ const DEFAULT_ARA_SM: LayoutItem[] = DEFAULT_ARA_LG.map((item, idx) => ({
   ...item, x: 0, y: idx * 4, w: 1,
 }))
 
+// ── Detalle Dash default layout (data-heavy cards, loaded on demand) ───────────
+
+const DEFAULT_DETALLE_LG: LayoutItem[] = [
+  { i: 'weather', x: 0, y: 0, w: 4, h: 3 },
+  { i: 'energy',  x: 0, y: 3, w: 2, h: 6 },
+  { i: 'battery', x: 2, y: 3, w: 2, h: 6 },
+  { i: 'commute', x: 0, y: 9, w: 2, h: 4 },
+]
+
+const DEFAULT_DETALLE_MD: LayoutItem[] = [
+  { i: 'weather', x: 0, y: 0, w: 2, h: 3 },
+  { i: 'energy',  x: 0, y: 3, w: 1, h: 6 },
+  { i: 'battery', x: 1, y: 3, w: 1, h: 6 },
+  { i: 'commute', x: 0, y: 9, w: 2, h: 4 },
+]
+
+const DEFAULT_DETALLE_SM: LayoutItem[] = DEFAULT_DETALLE_LG.map((item, idx) => ({
+  ...item, x: 0, y: idx * 4, w: 1,
+}))
+
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
 export interface TabDef {
@@ -65,8 +77,10 @@ export interface TabDef {
 
 const MAIN_ITEM_IDS = [
   'favorites','living','cocina','oficina','cuarto','bano',
-  'pasillo','balcon','vacuum','weather','energy','battery','commute',
+  'pasillo','balcon','vacuum',
 ]
+
+const DETALLE_ITEM_IDS = ['weather','energy','battery','commute']
 
 const DEFAULT_TABS: TabDef[] = [
   {
@@ -81,13 +95,23 @@ const DEFAULT_TABS: TabDef[] = [
     itemIds: ['exchange-rates'],
     layouts: { lg: DEFAULT_ARA_LG, md: DEFAULT_ARA_LG, sm: DEFAULT_ARA_SM },
   },
+  {
+    id:      'detalle',
+    label:   'Detalle',
+    itemIds: DETALLE_ITEM_IDS,
+    layouts: { lg: DEFAULT_DETALLE_LG, md: DEFAULT_DETALLE_MD, sm: DEFAULT_DETALLE_SM },
+  },
 ]
 
 // ── Persisted shape ───────────────────────────────────────────────────────────
 
+// Bump when DEFAULT_TABS structure changes to force a reset of stored layouts.
+const TABS_VERSION = 2
+
 interface Persisted {
   tabs:        TabDef[]
   activeTabId: string
+  version?:    number
 }
 
 // ── HA storage helpers ────────────────────────────────────────────────────────
@@ -103,7 +127,7 @@ function getHAConn(): HAConn | null {
 function saveToHA(data: Persisted): void {
   const conn = getHAConn()
   if (!conn) return
-  void conn.sendMessagePromise({ type: 'frontend/set_user_data', key: HA_STORAGE_KEY, value: data })
+  void conn.sendMessagePromise({ type: 'frontend/set_user_data', key: HA_STORAGE_KEY, value: { ...data, version: TABS_VERSION } })
     .catch(() => { /* ignore — saves will retry on next change */ })
 }
 
@@ -167,9 +191,18 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
       })
       const haData = (result as { value: Persisted | null }).value
 
-      if (haData && Array.isArray(haData.tabs) && haData.tabs.length > 0) {
-        // HA has data — apply it (cross-device sync)
-        set({ tabs: haData.tabs, activeTabId: haData.activeTabId })
+      if (haData && Array.isArray(haData.tabs) && haData.tabs.length > 0 && (haData.version ?? 0) >= TABS_VERSION) {
+        // HA has up-to-date data — apply it (cross-device sync).
+        // Always start on the first tab so heavy cards on other tabs load on demand.
+        set({ tabs: haData.tabs, activeTabId: 'main' })
+      } else if (haData && (haData.version ?? 0) < TABS_VERSION) {
+        // Stored layout predates the current tab structure — reset to defaults.
+        set({ tabs: DEFAULT_TABS, activeTabId: 'main' })
+        await haConn.sendMessagePromise({
+          type:  'frontend/set_user_data',
+          key:   HA_STORAGE_KEY,
+          value: { tabs: DEFAULT_TABS, activeTabId: 'main', version: TABS_VERSION },
+        })
       } else {
         // First run: migrate localStorage if present, then clear it
         let toSave: Persisted = { tabs: get().tabs, activeTabId: get().activeTabId }
@@ -187,7 +220,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
         await haConn.sendMessagePromise({
           type:  'frontend/set_user_data',
           key:   HA_STORAGE_KEY,
-          value: toSave,
+          value: { ...toSave, version: TABS_VERSION },
         })
         try { localStorage.removeItem(LS_KEY_TABS) } catch { /* ignore */ }
       }

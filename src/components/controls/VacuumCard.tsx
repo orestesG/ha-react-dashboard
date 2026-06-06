@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
-import { useVacuumStore } from "../../store/vacuum-store";
+import { useVacuumStore, getDeviceId, DEFAULT_ZOOM } from "../../store/vacuum-store";
 import type { PresetConfig, RotDeg } from "../../store/vacuum-store";
 import { VacuumScheduleModal } from "./VacuumScheduleModal";
 import { callService } from "../../lib/ha-client";
@@ -14,8 +14,9 @@ import {
 } from "../../dashboard.config";
 import { VacuumMap } from "../widgets/VacuumMap";
 
-const SCHEDULE_ENTITY = "schedule.limpieza_robot";
-const MAP_ENTITY      = "camera.xiaomi_robot_vacuum_x20_map";
+const SCHEDULE_ENTITY       = "schedule.limpieza_robot";
+const SCHEDULE_ENTITY_SWEEP = "schedule.limpieza_robot_solo_aspirado";
+const MAP_ENTITY            = "camera.xiaomi_robot_vacuum_x20_map";
 
 const ZOOM_STEPS = [0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3] as const;
 
@@ -62,6 +63,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const { entity: suctionEnt } = useEntity(VACUUM_SUCTION_LEVEL_ENTITY);
   const { entity: waterEnt } = useEntity(VACUUM_WATER_VOLUME_ENTITY);
   const { entity: scheduleEnt } = useEntity(SCHEDULE_ENTITY);
+  const { entity: scheduleSweepEnt } = useEntity(SCHEDULE_ENTITY_SWEEP);
   const connection = useHAStore((s) => s.connection);
 
   const [mapOpen, setMapOpen] = useState(false);
@@ -71,14 +73,15 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Presets + view + slots persisted in HA storage via vacuum-store
-  const { presets, view, slots, setPresets, setView, setSlots, syncScheduleHelpersToHA } = useVacuumStore();
+  const { presets, view, slots, setPresets, setRotation, setZoom, setSlots, syncScheduleHelpersToHA } = useVacuumStore();
   const mapRotation = view.rotation;
-  const mapZoom     = view.zoom;
+  // Zoom is per-device so each tablet keeps its own preferred level
+  const mapZoom     = view.zoomByDevice[getDeviceId()] ?? DEFAULT_ZOOM;
 
-  const rotateCW  = () => { setView({ ...view, rotation: ((mapRotation + 90)  % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
-  const rotateCCW = () => { setView({ ...view, rotation: ((mapRotation - 90 + 360) % 360) as RotDeg }); setMapPan({ x: 0, y: 0 }); };
-  const zoomIn    = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i < ZOOM_STEPS.length - 1) setView({ ...view, zoom: ZOOM_STEPS[i + 1] }); };
-  const zoomOut   = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i > 0) setView({ ...view, zoom: ZOOM_STEPS[i - 1] }); };
+  const rotateCW  = () => { setRotation(((mapRotation + 90)  % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
+  const rotateCCW = () => { setRotation(((mapRotation - 90 + 360) % 360) as RotDeg); setMapPan({ x: 0, y: 0 }); };
+  const zoomIn    = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i < ZOOM_STEPS.length - 1) setZoom(ZOOM_STEPS[i + 1]); };
+  const zoomOut   = () => { const i = ZOOM_STEPS.indexOf(mapZoom as typeof ZOOM_STEPS[number]); if (i > 0) setZoom(ZOOM_STEPS[i - 1]); };
 
   const state = entity?.state;
   const battery = entity?.attributes?.battery as number | undefined;
@@ -88,7 +91,19 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
   const waterOptions = (waterEnt?.attributes?.options as string[] | undefined) ?? [];
 
-  const nextEvent = scheduleEnt?.attributes?.next_event as string | undefined;
+  // The soonest cleaning can come from either schedule helper (full or sweep).
+  // A helper with no matching enabled slots only holds an inert placeholder block
+  // (HA requires at least one range), so its next_event must be ignored.
+  const hasFullSlots  = slots.some((s) => s.enabled && s.preset === "full");
+  const hasSweepSlots = slots.some((s) => s.enabled && s.preset === "sweep");
+  const nextEvent = (() => {
+    const candidates = [
+      hasFullSlots  ? scheduleEnt?.attributes?.next_event       : undefined,
+      hasSweepSlots ? scheduleSweepEnt?.attributes?.next_event  : undefined,
+    ].filter((v): v is string => typeof v === "string" && !isNaN(Date.parse(v)));
+    if (candidates.length === 0) return undefined;
+    return candidates.reduce((a, b) => (Date.parse(a) <= Date.parse(b) ? a : b));
+  })();
   const nextEventLabel = (() => {
     if (!nextEvent) return null;
     try {
@@ -128,11 +143,15 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
     setPresets({ ...presets, [key]: { ...presets[key], ...patch } });
   };
 
-  const launchRoomClean = (segmentId: number, options: { suction?: string; repeats: number }) => {
+  const launchRoomClean = async (segmentId: number, options: { suction?: string; repeats: number }) => {
     if (!connection) return;
-    const data: Record<string, unknown> = { segments: segmentId, repeats: options.repeats };
+    const data: Record<string, unknown> = { segments: [segmentId], repeats: options.repeats };
     if (options.suction) data.suction_level = options.suction;
-    callService(connection, "dreame_vacuum", "vacuum_clean_segment", data, { entity_id: entityId });
+    try {
+      await callService(connection, "dreame_vacuum", "vacuum_clean_segment", data, { entity_id: entityId });
+    } catch (err) {
+      console.warn("[VacuumCard] vacuum_clean_segment falló:", err);
+    }
     setSelectedRoom(null);
   };
 
@@ -295,18 +314,20 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
           <PresetRow presetKey="full"  icon={<Sparkles size={15} className="text-accent-blue" />} label="Aspirado + Mopa" />
           <PresetRow presetKey="sweep" icon={<Wind size={15} className="text-accent-blue" />}     label="Solo aspirado" />
 
-          <div className="flex gap-1.5 items-center px-3 py-2 rounded-xl bg-bg-tertiary">
-            <Calendar size={14} className="text-accent-blue shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text-primary">Programada</p>
-              <p className="text-xs text-text-secondary truncate">
-                {slots.filter(s => s.enabled).length} horario{slots.filter(s => s.enabled).length !== 1 ? "s" : ""}
-                {nextEventLabel ? ` · próx: ${nextEventLabel}` : ""}
-              </p>
+          <div className="flex gap-1.5">
+            <div className="flex-1 min-w-0 flex items-center gap-2 px-4 h-11 rounded-xl bg-bg-tertiary">
+              <Calendar size={16} className="text-accent-blue shrink-0" />
+              <div className="min-w-0 leading-tight">
+                <p className="text-sm font-medium text-text-primary">Programada</p>
+                <p className="text-[11px] text-text-secondary truncate">
+                  {slots.filter(s => s.enabled).length} horario{slots.filter(s => s.enabled).length !== 1 ? "s" : ""}
+                  {nextEventLabel ? ` · próx: ${nextEventLabel}` : ""}
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setScheduleOpen(true)}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-bg-secondary text-text-secondary hover:text-text-primary active:scale-95 transition-colors shrink-0"
+              className="w-11 h-11 flex items-center justify-center rounded-xl bg-bg-tertiary text-text-secondary hover:text-text-primary active:scale-95 transition-all shrink-0"
               aria-label="Editar horarios"
             >
               <Settings2 size={16} />

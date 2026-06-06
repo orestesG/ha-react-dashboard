@@ -14,7 +14,7 @@ export function Living() {
       tempEntityId="sensor.living_room_sensor_temperature"
       humidityEntityId="sensor.living_room_sensor_humidity"
     >
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
         <SwitchTile entityId="switch.sonoff_1002807067_1" name="Luz Principal" />
         <SwitchTile entityId="switch.sonoff_10020c54d4_1" name="Cenefa" />
       </div>
