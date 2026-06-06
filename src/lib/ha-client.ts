@@ -49,6 +49,8 @@ export function subscribeAllEntities(
   return subscribeEntities(conn, callback);
 }
 
+const SERVICE_TIMEOUT_MS = 10_000;
+
 export async function callService(
   conn: Connection,
   domain: string,
@@ -56,7 +58,30 @@ export async function callService(
   serviceData?: Record<string, unknown>,
   target?: { entity_id?: string | string[] }
 ): Promise<void> {
-  await wsCallService(conn, domain, service, serviceData, target ?? undefined);
+  const action = `${domain}.${service}`;
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`timeout:${action}`)), SERVICE_TIMEOUT_MS)
+  );
+
+  try {
+    await Promise.race([
+      wsCallService(conn, domain, service, serviceData, target ?? undefined),
+      timeout,
+    ]);
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.message.startsWith("timeout:");
+    const msg = isTimeout
+      ? `[Dashboard] Sin respuesta de HA — acción: ${action}, entidad: ${String(target?.entity_id ?? "–")}, timestamp: ${new Date().toISOString()}`
+      : `[Dashboard] Error en ${action}: ${String(err)}`;
+    console.warn(msg);
+    wsCallService(conn, "system_log", "write", {
+      message: msg,
+      level: "warning",
+      logger: "mi_dashboard",
+    }).catch(() => undefined);
+    throw err;
+  }
+
   if (target?.entity_id) {
     const ids = Array.isArray(target.entity_id) ? target.entity_id : [target.entity_id];
     ids.forEach((id) => _callListeners.forEach((fn) => fn(id)));

@@ -1,6 +1,14 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { useEntity } from "../../hooks/useEntity";
 import { Zap } from "lucide-react";
+
+// Accent colours are fixed Tailwind hex values (not CSS vars), so use the literals
+// directly — `var(--color-accent-*)` does not resolve as an SVG/inline style colour.
+const TARIFF_COLORS: Record<string, string> = {
+  Punta: "#ef4444", // accent-red
+  Llano: "#eab308", // accent-yellow
+  Valle: "#10b981", // accent-green
+};
 
 interface EnergyChartProps {
   actualEntityId?: string;
@@ -10,6 +18,7 @@ interface EnergyChartProps {
   gastoEntityId?: string;
   deudaEntityId?: string;
   historialEntityId?: string;
+  facturacionEntityId?: string;
 }
 
 export function EnergyChart({
@@ -20,6 +29,7 @@ export function EnergyChart({
   gastoEntityId = "sensor.ute_8647965855_gasto_actual",
   deudaEntityId = "sensor.ute_8647965855_deuda_total",
   historialEntityId = "sensor.ute_8647965855_historial_mensual",
+  facturacionEntityId = "sensor.ute_8647965855_historial_facturacion",
 }: EnergyChartProps) {
   const actual = useEntity(actualEntityId);
   const punta = useEntity(puntaEntityId);
@@ -28,8 +38,9 @@ export function EnergyChart({
   const gasto = useEntity(gastoEntityId);
   const deuda = useEntity(deudaEntityId);
   const historial = useEntity(historialEntityId);
+  const facturacion = useEntity(facturacionEntityId);
 
-  const entities = [actual, punta, llano, valle, gasto, deuda, historial];
+  const entities = [actual, punta, llano, valle, gasto, deuda, historial, facturacion];
   const loading = entities.some(e => e.loading);
 
   if (loading) {
@@ -42,15 +53,12 @@ export function EnergyChart({
   }
 
   const consumptionData = [
-    { label: "Punta", value: punta.entity?.state, color: "bg-accent-red" },
-    { label: "Llano", value: llano.entity?.state, color: "bg-accent-yellow" },
-    { label: "Valle", value: valle.entity?.state, color: "bg-accent-green" },
+    { label: "Punta", value: parseFloat(punta.entity?.state || "0") },
+    { label: "Llano", value: parseFloat(llano.entity?.state || "0") },
+    { label: "Valle", value: parseFloat(valle.entity?.state || "0") },
   ];
 
-  const maxConsumption = Math.max(
-    ...consumptionData.map(d => parseFloat(d.value || "0")),
-    0.1
-  );
+  const totalConsumption = consumptionData.reduce((sum, d) => sum + d.value, 0);
 
   let rawHistory: { month: string; kwh: number }[] = [];
   try {
@@ -60,15 +68,63 @@ export function EnergyChart({
   } catch {
     // state no es JSON válido
   }
-  const historyData = [...rawHistory]
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .map(({ month, kwh }) => ({
+
+  // Historial de facturación: monto real por ciclo de cierre (ver Ute2MQTT).
+  // Se mapea por la misma clave "YYYY-MM" que monthly_history.
+  let rawBilling: { cycle: string; amount: number }[] = [];
+  try {
+    if (facturacion.state && facturacion.state !== "unavailable") {
+      rawBilling = JSON.parse(facturacion.state);
+    }
+  } catch {
+    // state no es JSON válido
+  }
+  const billedByCycle = new Map(rawBilling.map((b) => [b.cycle, b.amount]));
+
+  // Estimado del mes en curso (cuando aún no hay factura): current_spending.
+  const currentEstimate = gasto.entity?.state ? parseFloat(gasto.entity.state) : null;
+
+  const sortedHistory = [...rawHistory].sort((a, b) => a.month.localeCompare(b.month));
+  const historyData = sortedHistory.map(({ month, kwh }, i) => {
+    const billed = billedByCycle.get(month);
+    const isLast = i === sortedHistory.length - 1;
+    // Mes cerrado y facturado → monto real. Mes en curso sin factura → estimado.
+    const estimated = billed == null;
+    const amount = billed != null ? billed : isLast ? currentEstimate : null;
+    return {
       kwh,
+      amount,
+      estimated,
       label: new Date(month + "-01").toLocaleDateString("es-UY", {
         month: "short",
         year: "2-digit",
       }),
-    }));
+    };
+  });
+
+  const fmtMoney = (v: number) =>
+    `$${Math.round(v).toLocaleString("es-UY")}`;
+
+  // Etiqueta de monto sobre cada barra ($ real, o ≈$ si es estimado).
+  const renderAmountLabel = (props: {
+    x?: number; y?: number; width?: number; index?: number;
+  }) => {
+    const { x = 0, y = 0, width = 0, index = 0 } = props;
+    const d = historyData[index];
+    if (!d || d.amount == null) return null;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+        fill={d.estimated ? "var(--color-text-secondary)" : "var(--color-accent-yellow)"}
+      >
+        {d.estimated ? `≈${fmtMoney(d.amount)}` : fmtMoney(d.amount)}
+      </text>
+    );
+  };
 
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">
@@ -84,18 +140,20 @@ export function EnergyChart({
 
       <div className="space-y-2 mb-4">
         {consumptionData.map((d) => {
-          const numValue = parseFloat(d.value || "0");
-          const pct = (numValue / maxConsumption) * 100;
+          const pct = totalConsumption > 0 ? (d.value / totalConsumption) * 100 : 0;
           return (
             <div key={d.label}>
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-text-secondary">{d.label}</span>
-                <span className="text-text-primary font-medium">{numValue.toFixed(1)} kWh</span>
+                <span className="text-text-primary font-medium tabular-nums">
+                  {d.value.toFixed(1)} kWh
+                  <span className="text-text-secondary/60 text-xs ml-1.5">{pct.toFixed(0)}%</span>
+                </span>
               </div>
               <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${d.color}`}
-                  style={{ width: `${Math.max(pct, 2)}%` }}
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(pct, 2)}%`, background: TARIFF_COLORS[d.label] }}
                 />
               </div>
             </div>
@@ -120,9 +178,12 @@ export function EnergyChart({
 
       {historyData.length > 0 && (
         <div className="pt-3 border-t border-border-main">
-          <p className="text-xs text-text-secondary mb-2">Historial mensual</p>
-          <ResponsiveContainer width="100%" height={110}>
-            <BarChart data={historyData} barCategoryGap="25%">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-text-secondary">Historial mensual</p>
+            <p className="text-[10px] text-text-secondary/70">kWh · gasto facturado</p>
+          </div>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={historyData} barCategoryGap="25%" margin={{ top: 18, right: 4, left: 0, bottom: 0 }}>
               <XAxis
                 dataKey="label"
                 tick={{ fill: "var(--color-text-secondary)", fontSize: 10 }}
@@ -143,20 +204,27 @@ export function EnergyChart({
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                formatter={(v) => [`${v ?? 0} kWh`, "Consumo"]}
+                formatter={(v, _name, item) => {
+                  const d = item?.payload as (typeof historyData)[number] | undefined;
+                  if (d?.amount != null) {
+                    const money = d.estimated ? `≈${fmtMoney(d.amount)} estimado` : fmtMoney(d.amount);
+                    return [`${v ?? 0} kWh · ${money}`, "Consumo · gasto"];
+                  }
+                  return [`${v ?? 0} kWh`, "Consumo"];
+                }}
                 cursor={{ fill: "rgba(255,255,255,0.05)" }}
               />
               <Bar dataKey="kwh" radius={[3, 3, 0, 0]}>
-                {historyData.map((_, i) => (
+                {historyData.map((d, i) => (
                   <Cell
                     key={i}
-                    fill={
-                      i === historyData.length - 1
-                        ? "var(--color-accent-yellow)"
-                        : "#5a4a1a"
-                    }
+                    fill={d.estimated ? "rgba(234,179,8,0.30)" : "var(--color-accent-yellow)"}
+                    stroke={d.estimated ? "var(--color-accent-yellow)" : undefined}
+                    strokeWidth={d.estimated ? 1 : 0}
+                    strokeDasharray={d.estimated ? "3 2" : undefined}
                   />
                 ))}
+                <LabelList dataKey="amount" content={renderAmountLabel} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

@@ -216,8 +216,10 @@ function VacuumMapInner({
   const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
 
   // Drag handlers — convert pixel delta to SVG coordinate delta using the current viewBox
+  const panEnabled = !!onPanChange;
+
   const handlePointerDown = (e: PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
+    if (!panEnabled || e.button !== 0) return;
     // NOTE: intentionally NO setPointerCapture — pointer capture redirects pointerUp
     // to the SVG element, which causes the browser to fire `click` on the SVG instead
     // of on the child rect, breaking room selection entirely.
@@ -304,7 +306,7 @@ function VacuumMapInner({
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
         preserveAspectRatio="xMidYMid meet"
         className="w-full h-full block"
-        style={{ background: "var(--color-bg-tertiary)", cursor: isDragging ? "grabbing" : "grab", touchAction: "none" }}
+        style={{ background: "var(--color-bg-tertiary)", cursor: panEnabled ? (isDragging ? "grabbing" : "grab") : "default", touchAction: "none" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
