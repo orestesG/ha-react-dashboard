@@ -98,7 +98,8 @@ function App({ panelMode = false }: AppProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary px-4 md:px-6 pb-4 md:pb-6">
-      <header className="sticky top-0 z-30 bg-bg-primary -mx-4 md:-mx-6 px-4 md:px-6 pt-4 md:pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="sticky top-0 z-30 bg-bg-primary -mx-4 md:-mx-6 px-4 md:px-6">
+      <header className="pt-4 md:pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h1 className="text-text-primary text-xl md:text-2xl font-semibold">
             Dashboard
@@ -156,7 +157,7 @@ function App({ panelMode = false }: AppProps) {
       </header>
 
       {error && !panelMode && (
-        <div className="mb-4 bg-accent-red/10 border border-accent-red/20 rounded-2xl p-4 text-sm text-accent-red">
+        <div className="mb-3 bg-accent-red/10 border border-accent-red/20 rounded-2xl p-4 text-sm text-accent-red">
           {error}
           <button
             onClick={() => connect(HA_URL, HA_TOKEN)}
@@ -168,6 +169,7 @@ function App({ panelMode = false }: AppProps) {
       )}
 
       <TabBar tabs={tabs} activeTabId={activeTabId} onSelect={setActiveTab} />
+      </div>
 
       <div ref={containerRef} className={editMode ? "layout-edit-mode" : ""}>
         {haLoading ? <GridSkeleton /> : (
