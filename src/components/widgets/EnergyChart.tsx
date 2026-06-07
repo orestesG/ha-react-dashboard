@@ -106,10 +106,10 @@ export function EnergyChart({
     `$${Math.round(v).toLocaleString("es-UY")}`;
 
   // Etiqueta de monto sobre cada barra ($ real, o ≈$ si es estimado).
-  const renderAmountLabel = (props: Record<string, unknown>) => {
-    const { x = 0, y = 0, width = 0, index = 0 } = props as {
-      x?: number; y?: number; width?: number; index?: number;
-    };
+  const renderAmountLabel = (props: {
+    x?: number; y?: number; width?: number; index?: number;
+  }) => {
+    const { x = 0, y = 0, width = 0, index = 0 } = props;
     const d = historyData[index];
     if (!d || d.amount == null) return null;
     return (
@@ -224,7 +224,8 @@ export function EnergyChart({
                     strokeDasharray={d.estimated ? "3 2" : undefined}
                   />
                 ))}
-                <LabelList dataKey="amount" content={renderAmountLabel} />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <LabelList dataKey="amount" content={renderAmountLabel as never} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
