@@ -106,10 +106,10 @@ export function EnergyChart({
     `$${Math.round(v).toLocaleString("es-UY")}`;
 
   // Etiqueta de monto sobre cada barra ($ real, o ≈$ si es estimado).
-  const renderAmountLabel = (props: {
-    x?: number; y?: number; width?: number; index?: number;
-  }) => {
-    const { x = 0, y = 0, width = 0, index = 0 } = props;
+  const renderAmountLabel = (props: Record<string, unknown>) => {
+    const { x = 0, y = 0, width = 0, index = 0 } = props as {
+      x?: number; y?: number; width?: number; index?: number;
+    };
     const d = historyData[index];
     if (!d || d.amount == null) return null;
     return (
