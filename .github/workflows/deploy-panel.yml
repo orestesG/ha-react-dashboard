@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Copy dashboard config
-        shell: pwsh
+        shell: powershell
         run: |
           $src = "D:\HAReactDash-style-fixes\src\dashboard.config.ts"
           if (Test-Path $src) {
@@ -38,7 +38,7 @@ jobs:
         run: npm run build:panel
 
       - name: Copy to HA www directory
-        shell: pwsh
+        shell: powershell
         env:
           HA_WWW: ${{ vars.HA_WWW_PATH }}
         run: |
