@@ -40,10 +40,15 @@ jobs:
       - name: Copy to HA www directory
         shell: powershell
         env:
-          HA_WWW: ${{ vars.HA_WWW_PATH }}
+          HA_WWW:      ${{ vars.HA_WWW_PATH }}
+          SAMBA_USER:  ${{ secrets.SAMBA_USER }}
+          SAMBA_PASS:  ${{ secrets.SAMBA_PASS }}
         run: |
           $dest = $env:HA_WWW
-          if (-not $dest) { throw "Variable HA_WWW_PATH no configurada en el repo (Settings > Variables)" }
+          if (-not $dest) { throw "Variable HA_WWW_PATH no configurada (Settings > Variables)" }
+          $share = ($dest -split '\\' | Select-Object -First 4) -join '\'
+          net use $share $env:SAMBA_PASS /user:$env:SAMBA_USER /persistent:no | Out-Null
           if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
           Copy-Item dist\main.js "$dest\main.js" -Force
+          net use $share /delete | Out-Null
           Write-Host "OK: main.js copiado a $dest"
