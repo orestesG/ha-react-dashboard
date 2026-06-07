@@ -28,10 +28,10 @@ jobs:
           $src = "D:\HAReactDash-style-fixes\src\dashboard.config.ts"
           if (Test-Path $src) {
             Copy-Item $src "src\dashboard.config.ts" -Force
-            Write-Host "✓ dashboard.config.ts copiado"
+            Write-Host "OK: dashboard.config.ts copiado"
           } else {
             Copy-Item "src\dashboard.config.example.ts" "src\dashboard.config.ts" -Force
-            Write-Host "⚠ Usando dashboard.config.example.ts (config real no encontrada en $src)"
+            Write-Host "WARN: usando dashboard.config.example.ts"
           }
 
       - name: Build panel
@@ -46,4 +46,4 @@ jobs:
           if (-not $dest) { throw "Variable HA_WWW_PATH no configurada en el repo (Settings > Variables)" }
           if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
           Copy-Item dist\main.js "$dest\main.js" -Force
-          Write-Host "✓ main.js copiado a $dest"
+          Write-Host "OK: main.js copiado a $dest"
