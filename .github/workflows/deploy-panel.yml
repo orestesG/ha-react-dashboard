@@ -22,6 +22,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Copy dashboard config
+        shell: pwsh
+        run: |
+          $src = "D:\HAReactDash-style-fixes\src\dashboard.config.ts"
+          if (Test-Path $src) {
+            Copy-Item $src "src\dashboard.config.ts" -Force
+            Write-Host "✓ dashboard.config.ts copiado"
+          } else {
+            Copy-Item "src\dashboard.config.example.ts" "src\dashboard.config.ts" -Force
+            Write-Host "⚠ Usando dashboard.config.example.ts (config real no encontrada en $src)"
+          }
+
       - name: Build panel
         run: npm run build:panel
 
