@@ -3,6 +3,7 @@ name: Deploy Panel to Home Assistant
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
