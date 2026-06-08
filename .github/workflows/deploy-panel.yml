@@ -23,7 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Copy dashboard config
+      # ── Dashboard config: Windows runner (copia desde path local) ──────────
+      - name: Copy dashboard config (Windows)
+        if: runner.os == 'Windows'
         shell: powershell
         run: |
           $src = "D:\HAReactDash-style-fixes\src\dashboard.config.ts"
@@ -35,10 +37,27 @@ jobs:
             Write-Host "WARN: usando dashboard.config.example.ts"
           }
 
+      # ── Dashboard config: Linux/Docker runner (desde secret base64) ────────
+      - name: Copy dashboard config (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          DASHBOARD_CONFIG_B64: ${{ secrets.DASHBOARD_CONFIG_B64 }}
+        run: |
+          if [ -n "$DASHBOARD_CONFIG_B64" ]; then
+            echo "$DASHBOARD_CONFIG_B64" | base64 -d > src/dashboard.config.ts
+            echo "OK: dashboard.config.ts restaurado desde secret"
+          else
+            cp src/dashboard.config.example.ts src/dashboard.config.ts
+            echo "WARN: usando dashboard.config.example.ts (secret DASHBOARD_CONFIG_B64 no configurado)"
+          fi
+
       - name: Build panel
         run: npm run build:panel
 
-      - name: Copy to HA and version module_url
+      # ── Deploy a HA: Windows runner (net use + PowerShell file I/O) ────────
+      - name: Copy to HA and version module_url (Windows)
+        if: runner.os == 'Windows'
         shell: powershell
         env:
           HA_WWW:      ${{ vars.HA_WWW_PATH }}
@@ -50,12 +69,10 @@ jobs:
           $share = ($dest -split '\\' | Select-Object -First 4) -join '\'
           net use $share $env:SAMBA_PASS /user:$env:SAMBA_USER /persistent:no | Out-Null
 
-          # Copy main.js
           if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
           Copy-Item dist\main.js "$dest\main.js" -Force
           Write-Host "OK: main.js copiado"
 
-          # Update module_url in configuration.yaml with git SHA for cache busting
           $sha     = $env:GITHUB_SHA.Substring(0, 7)
           $cfgPath = "$share\configuration.yaml"
           $utf8    = [System.Text.UTF8Encoding]::new($false)
@@ -66,16 +83,52 @@ jobs:
 
           net use $share /delete | Out-Null
 
+      # ── Deploy a HA: Linux/Docker runner (smbclient) ───────────────────────
+      - name: Copy to HA and version module_url (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          HA_WWW:      ${{ vars.HA_WWW_PATH }}
+          SAMBA_USER:  ${{ secrets.SAMBA_USER }}
+          SAMBA_PASS:  ${{ secrets.SAMBA_PASS }}
+        run: |
+          # Convertir UNC path Windows (\\host\share\sub\dir) a componentes Linux
+          LINUX_PATH=$(echo "$HA_WWW" | tr '\\' '/')
+          HA_HOST=$(echo "$LINUX_PATH" | cut -d'/' -f3)
+          HA_SHARE=$(echo "$LINUX_PATH" | cut -d'/' -f4)
+          HA_SUBDIR=$(echo "$LINUX_PATH" | cut -d'/' -f5-)
+
+          # Copiar main.js via smbclient
+          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+            -c "mkdir $HA_SUBDIR; put dist/main.js $HA_SUBDIR/main.js" 2>/dev/null || \
+          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+            -c "put dist/main.js $HA_SUBDIR/main.js"
+          echo "OK: main.js copiado"
+
+          # Descargar, parchear y subir configuration.yaml
+          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+            -c "get configuration.yaml /tmp/configuration.yaml"
+          SHA="${GITHUB_SHA:0:7}"
+          sed -E -i "s|module_url: /local/mi-dashboard/main\.js(\?v=[a-f0-9]+)?|module_url: /local/mi-dashboard/main.js?v=${SHA}|" \
+            /tmp/configuration.yaml
+          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+            -c "put /tmp/configuration.yaml configuration.yaml"
+          echo "OK: module_url actualizado a ?v=$SHA"
+
+      # ── Reload HA (curl funciona en Windows y Linux) ───────────────────────
       - name: Reload HA config
-        shell: powershell
+        shell: bash
         env:
           HA_URL:   ${{ secrets.HA_URL }}
           HA_TOKEN: ${{ secrets.HA_TOKEN }}
         run: |
-          $headers = @{ Authorization = "Bearer $env:HA_TOKEN"; "Content-Type" = "application/json" }
-          try {
-            Invoke-RestMethod -Uri "$env:HA_URL/api/services/homeassistant/reload_all" -Method Post -Headers $headers -Body "{}" | Out-Null
-            Write-Host "OK: HA config recargada"
-          } catch {
-            Write-Host "WARN: reload_all fallo - $($_.Exception.Message)"
-          }
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$HA_URL/api/services/homeassistant/reload_all" \
+            -H "Authorization: Bearer $HA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          if [ "$STATUS" = "200" ]; then
+            echo "OK: HA config recargada"
+          else
+            echo "WARN: reload_all fallo - HTTP $STATUS"
+          fi

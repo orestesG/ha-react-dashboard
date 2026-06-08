@@ -37,3 +37,6 @@ src/dashboard.config.ts
 
 # GitHub Actions self-hosted runner (instalado localmente, no debe versionarse)
 actions-runner/
+
+# Variables de entorno del runner Docker (contienen PAT)
+docker/runner/.env
