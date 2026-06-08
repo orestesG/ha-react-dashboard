@@ -95,7 +95,45 @@ Settings → System → Restart (solo necesario la primera vez).
 
 Navegar a `http://homeassistant.local:8123/mi-dashboard` o hacer clic en "Dashboard" en el sidebar.
 
-**Para actualizaciones posteriores:** reemplazar `main.js` en HA y hacer Ctrl+Shift+R en el browser. No hace falta reiniciar HA.
+**Para actualizaciones posteriores:** ver sección [Despliegue automático (CI/CD)](#despliegue-automático-cicd) — el workflow lo hace todo en cada push a `main`.
+
+---
+
+## Despliegue automático (CI/CD)
+
+Cada push a `main` ejecuta el workflow `.github/workflows/deploy-panel.yml` en un runner self-hosted (Windows) que:
+
+1. Hace build del panel (`npm run build:panel`)
+2. Copia `dist/main.js` a la carpeta compartida de HA vía Samba
+3. Actualiza `module_url` en `configuration.yaml` con el SHA del commit (`?v=abc1234`) para invalidar el cache del browser
+4. Llama a `homeassistant/reload_all` vía API REST para que HA levante el nuevo URL sin reiniciar
+
+### Requisitos
+
+- **Runner self-hosted** instalado como servicio de Windows con una cuenta de usuario (no NETWORK SERVICE) que tenga acceso a la carpeta Samba de HA
+- Carpeta destino creada: `\\homeassistant\config\www\mi-dashboard\`
+- `module_url` (no `js_url`) en `configuration.yaml`
+
+### Secretos y variables en GitHub
+
+Settings del repo → Secrets and variables → Actions:
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| Secret | `SAMBA_USER` | Usuario con acceso al share de HA |
+| Secret | `SAMBA_PASS` | Contraseña del usuario Samba |
+| Secret | `HA_TOKEN` | Long-lived access token de HA |
+| Secret | `HA_URL` | URL de HA, ej. `http://homeassistant.local:8123` |
+| Variable | `HA_WWW_PATH` | Ruta UNC completa, ej. `\\homeassistant\config\www\mi-dashboard` |
+
+### Instalar el runner
+
+1. GitHub repo → Settings → Actions → Runners → New self-hosted runner → Windows
+2. Seguir las instrucciones de descarga y configuración
+3. Registrar como servicio: en la carpeta del runner ejecutar `.\svc.cmd install` y `.\svc.cmd start` **como Administrador**
+4. En `services.msc`, cambiar el Log On del servicio `GitHub Actions Runner` a una cuenta de usuario que tenga acceso a red (no Local System)
+5. `Set-ExecutionPolicy RemoteSigned -Scope LocalMachine` (como Administrador)
+6. `git config --system --add safe.directory "*"` (como Administrador)
 
 ---
 

@@ -58,9 +58,14 @@ body {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-right: 2px solid var(--color-border);
   border-bottom: 2px solid var(--color-border);
   border-radius: 0 0 4px 0;
+}
+/* In edit mode: use accent-blue so the handle is clearly visible */
+.layout-edit-mode .react-resizable-handle-se::after {
+  border-right: 2px solid var(--color-accent-blue);
+  border-bottom: 2px solid var(--color-accent-blue);
 }

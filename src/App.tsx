@@ -28,7 +28,7 @@ import { CommuteChip } from "./components/widgets/CommuteChip";
 import { ExchangeRateCard } from "./components/widgets/ExchangeRateCard";
 import { TabBar } from "./components/ui/TabBar";
 import { GridSkeleton } from "./components/ui/GridSkeleton";
-import { LayoutGrid, RotateCcw, Check } from "lucide-react";
+import { LayoutGrid, RotateCcw, Check, GripHorizontal } from "lucide-react";
 import { PERSON_ENTITY, VACUUM_ENTITY, batterySensors, scenes, commuteRoutes } from "./dashboard.config";
 
 const HA_URL = import.meta.env.VITE_HA_URL || "";
@@ -42,7 +42,12 @@ function GridItem({ editMode, children }: { editMode: boolean; children: React.R
   return (
     <div className="relative h-full">
       {editMode && (
-        <div className="absolute inset-0 z-10 rounded-2xl cursor-grab active:cursor-grabbing bg-accent-blue/5 border-2 border-dashed border-accent-blue/30" />
+        <div className="absolute inset-0 z-10 rounded-2xl bg-accent-blue/5 border-2 border-dashed border-accent-blue/30">
+          {/* Solo este strip inicia el drag — el resto de la card queda libre para scroll */}
+          <div className="drag-handle absolute top-0 left-0 right-0 h-10 flex items-center justify-center rounded-t-2xl cursor-grab active:cursor-grabbing select-none">
+            <GripHorizontal size={16} className="text-accent-blue/60" />
+          </div>
+        </div>
       )}
       <div className="h-full overflow-hidden">
         {children}
@@ -181,7 +186,7 @@ function App({ panelMode = false }: AppProps) {
             rowHeight={100}
             margin={[16, 16]}
             containerPadding={[0, 0]}
-            dragConfig={{ enabled: editMode }}
+            dragConfig={{ enabled: editMode, handle: '.drag-handle' }}
             resizeConfig={{ enabled: editMode, handles: ['se'] as const }}
             onLayoutChange={(_layout: unknown, allLayouts: ResponsiveLayouts) => setLayouts(allLayouts)}
           >

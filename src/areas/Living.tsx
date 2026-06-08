@@ -4,6 +4,7 @@ import { SwitchTile } from "../components/controls/SwitchTile";
 import { LightTile } from "../components/controls/LightTile";
 import { CoverTile } from "../components/controls/CoverTile";
 import { MediaPlayerCard } from "../components/controls/MediaPlayerCard";
+import { ClimateCard } from "../components/controls/ClimateCard";
 
 export function Living() {
   return (
@@ -22,6 +23,7 @@ export function Living() {
       <CoverTile entityId="cover.sonoff_10023e4c70" name="Persiana" />
       <CoverTile entityId="cover.curtain_3_c564" name="Cortina" />
       <MediaPlayerCard entityId="media_player.the_premiere" name="TV" />
+      <ClimateCard entityId="climate.el_seco" name="El Seco" />
     </AreaCard>
   );
 }
