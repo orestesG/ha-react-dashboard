@@ -38,7 +38,7 @@ jobs:
       - name: Build panel
         run: npm run build:panel
 
-      - name: Copy to HA www directory
+      - name: Copy to HA and version module_url
         shell: powershell
         env:
           HA_WWW:      ${{ vars.HA_WWW_PATH }}
@@ -49,7 +49,33 @@ jobs:
           if (-not $dest) { throw "Variable HA_WWW_PATH no configurada (Settings > Variables)" }
           $share = ($dest -split '\\' | Select-Object -First 4) -join '\'
           net use $share $env:SAMBA_PASS /user:$env:SAMBA_USER /persistent:no | Out-Null
+
+          # Copy main.js
           if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
           Copy-Item dist\main.js "$dest\main.js" -Force
+          Write-Host "OK: main.js copiado"
+
+          # Update module_url in configuration.yaml with git SHA for cache busting
+          $sha     = $env:GITHUB_SHA.Substring(0, 7)
+          $cfgPath = "$share\configuration.yaml"
+          $utf8    = [System.Text.UTF8Encoding]::new($false)
+          $content = [System.IO.File]::ReadAllText($cfgPath, $utf8)
+          $updated = $content -replace 'module_url: /local/mi-dashboard/main\.js(\?v=[a-f0-9]+)?', "module_url: /local/mi-dashboard/main.js?v=$sha"
+          [System.IO.File]::WriteAllText($cfgPath, $updated, $utf8)
+          Write-Host "OK: module_url actualizado a ?v=$sha"
+
           net use $share /delete | Out-Null
-          Write-Host "OK: main.js copiado a $dest"
+
+      - name: Reload HA config
+        shell: powershell
+        env:
+          HA_URL:   ${{ secrets.HA_URL }}
+          HA_TOKEN: ${{ secrets.HA_TOKEN }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:HA_TOKEN"; "Content-Type" = "application/json" }
+          try {
+            Invoke-RestMethod -Uri "$env:HA_URL/api/services/homeassistant/reload_all" -Method Post -Headers $headers -Body "{}" | Out-Null
+            Write-Host "OK: HA config recargada"
+          } catch {
+            Write-Host "WARN: reload_all fallo - $($_.Exception.Message)"
+          }
