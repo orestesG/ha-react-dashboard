@@ -22,7 +22,7 @@ RUN wget -q "https://packages.microsoft.com/config/ubuntu/22.04/packages-microso
     && rm -rf /var/lib/apt/lists/*
 
 # GitHub Actions runner
-ARG RUNNER_VERSION=2.317.0
+ARG RUNNER_VERSION=2.334.0
 RUN useradd -m runner
 WORKDIR /home/runner
 RUN curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
