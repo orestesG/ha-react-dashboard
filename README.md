@@ -126,7 +126,7 @@ Settings del repo → Secrets and variables → Actions:
 | Secret | `HA_URL` | URL de HA, ej. `http://homeassistant.local:8123` |
 | Variable | `HA_WWW_PATH` | Ruta UNC completa, ej. `\\homeassistant\config\www\mi-dashboard` |
 
-### Instalar el runner
+### Instalar el runner (Windows)
 
 1. GitHub repo → Settings → Actions → Runners → New self-hosted runner → Windows
 2. Seguir las instrucciones de descarga y configuración
@@ -134,6 +134,34 @@ Settings del repo → Secrets and variables → Actions:
 4. En `services.msc`, cambiar el Log On del servicio `GitHub Actions Runner` a una cuenta de usuario que tenga acceso a red (no Local System)
 5. `Set-ExecutionPolicy RemoteSigned -Scope LocalMachine` (como Administrador)
 6. `git config --system --add safe.directory "*"` (como Administrador)
+
+### Runner alternativo: Docker
+
+Para correr el runner en cualquier máquina con Docker (Linux/Mac/Windows) sin instalación manual.
+
+**Secrets adicionales necesarios en GitHub:**
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| Secret | `DASHBOARD_CONFIG_B64` | Contenido de `dashboard.config.ts` en base64: `base64 -w 0 src/dashboard.config.ts` |
+
+**Pasos:**
+
+1. Crear un GitHub PAT con scope `repo` en GitHub → Settings → Developer settings → Personal access tokens
+2. Crear el archivo de entorno local:
+```bash
+cd docker/runner
+cp .env.example .env
+# editar .env con GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO
+```
+3. Levantar el contenedor:
+```bash
+docker compose up -d --build
+```
+
+El contenedor se auto-registra en GitHub al arrancar y aparece como `docker-runner` en Settings → Actions → Runners. El workflow detecta el OS automáticamente y usa `smbclient` en lugar de `net use` para acceder al share de HA.
+
+Para mover a otro PC: copiar `docker/runner/.env` y repetir el paso 3.
 
 ---
 
