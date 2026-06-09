@@ -115,8 +115,25 @@ jobs:
             -c "put /tmp/configuration.yaml configuration.yaml"
           echo "OK: module_url actualizado a ?v=$SHA"
 
-      # ── Reload HA (curl funciona en Windows y Linux) ───────────────────────
-      - name: Reload HA config
+      # ── Reload HA: Windows ────────────────────────────────────────────────
+      - name: Reload HA config (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          HA_URL:   ${{ secrets.HA_URL }}
+          HA_TOKEN: ${{ secrets.HA_TOKEN }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:HA_TOKEN"; "Content-Type" = "application/json" }
+          try {
+            Invoke-RestMethod -Uri "$env:HA_URL/api/services/homeassistant/reload_all" -Method Post -Headers $headers -Body "{}" | Out-Null
+            Write-Host "OK: HA config recargada"
+          } catch {
+            Write-Host "WARN: reload_all fallo - $($_.Exception.Message)"
+          }
+
+      # ── Reload HA: Linux/Docker ────────────────────────────────────────────
+      - name: Reload HA config (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         env:
           HA_URL:   ${{ secrets.HA_URL }}
