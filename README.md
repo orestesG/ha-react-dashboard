@@ -125,6 +125,7 @@ Settings del repo → Secrets and variables → Actions:
 | Secret | `HA_TOKEN` | Long-lived access token de HA |
 | Secret | `HA_URL` | URL de HA, ej. `http://homeassistant.local:8123` |
 | Variable | `HA_WWW_PATH` | Ruta UNC completa, ej. `\\homeassistant\config\www\mi-dashboard` |
+| Variable | `HA_SAMBA_HOST` | IP del servidor HA, ej. `192.168.1.100` (requerido para runner Linux/Docker — NetBIOS no resuelve en contenedores) |
 
 ### Instalar el runner (Windows)
 

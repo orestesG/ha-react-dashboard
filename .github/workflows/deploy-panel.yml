@@ -88,30 +88,34 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         env:
-          HA_WWW:      ${{ vars.HA_WWW_PATH }}
-          SAMBA_USER:  ${{ secrets.SAMBA_USER }}
-          SAMBA_PASS:  ${{ secrets.SAMBA_PASS }}
+          HA_WWW:       ${{ vars.HA_WWW_PATH }}
+          HA_SAMBA_HOST: ${{ vars.HA_SAMBA_HOST }}
+          SAMBA_USER:   ${{ secrets.SAMBA_USER }}
+          SAMBA_PASS:   ${{ secrets.SAMBA_PASS }}
         run: |
-          # Convertir UNC path Windows (\\host\share\sub\dir) a componentes Linux
+          # Extraer share y subdirectorio del UNC path (el host se sobreescribe con HA_SAMBA_HOST)
           LINUX_PATH=$(echo "$HA_WWW" | tr '\\' '/')
-          HA_HOST=$(echo "$LINUX_PATH" | cut -d'/' -f3)
           HA_SHARE=$(echo "$LINUX_PATH" | cut -d'/' -f4)
           HA_SUBDIR=$(echo "$LINUX_PATH" | cut -d'/' -f5-)
 
+          # Usar IP directa para evitar problemas de resolución NetBIOS en Linux
+          HOST="$HA_SAMBA_HOST"
+          if [ -z "$HOST" ]; then HOST=$(echo "$LINUX_PATH" | cut -d'/' -f3); fi
+
           # Copiar main.js via smbclient
-          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "mkdir $HA_SUBDIR; put dist/main.js $HA_SUBDIR/main.js" 2>/dev/null || \
-          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "put dist/main.js $HA_SUBDIR/main.js"
           echo "OK: main.js copiado"
 
           # Descargar, parchear y subir configuration.yaml
-          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "get configuration.yaml /tmp/configuration.yaml"
           SHA="${GITHUB_SHA:0:7}"
           sed -E -i "s|module_url: /local/mi-dashboard/main\.js(\?v=[a-f0-9]+)?|module_url: /local/mi-dashboard/main.js?v=${SHA}|" \
             /tmp/configuration.yaml
-          smbclient "//$HA_HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "put /tmp/configuration.yaml configuration.yaml"
           echo "OK: module_url actualizado a ?v=$SHA"
 
