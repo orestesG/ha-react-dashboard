@@ -89,7 +89,7 @@ jobs:
         shell: bash
         env:
           HA_WWW:       ${{ vars.HA_WWW_PATH }}
-          HA_SAMBA_HOST: ${{ vars.HA_SAMBA_HOST }}
+          HA_SAMBA_HOST: ${{ secrets.HA_SAMBA_HOST }}
           SAMBA_USER:   ${{ secrets.SAMBA_USER }}
           SAMBA_PASS:   ${{ secrets.SAMBA_PASS }}
         run: |
