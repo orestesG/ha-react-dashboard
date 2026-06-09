@@ -9,4 +9,5 @@ services:
       GITHUB_OWNER:  ${GITHUB_OWNER}
       GITHUB_REPO:   ${GITHUB_REPO}
       RUNNER_NAME:   ${RUNNER_NAME:-docker-runner}
+    network_mode: host
     restart: unless-stopped
