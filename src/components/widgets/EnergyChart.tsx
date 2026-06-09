@@ -1,6 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { useEntity } from "../../hooks/useEntity";
-import { Zap } from "lucide-react";
+import { Zap, ChevronDown, ChevronUp } from "lucide-react";
+import { useCollapseStore } from "../../store/collapse-store";
 
 // Accent colours are fixed Tailwind hex values (not CSS vars), so use the literals
 // directly — `var(--color-accent-*)` does not resolve as an SVG/inline style colour.
@@ -126,6 +127,9 @@ export function EnergyChart({
     );
   };
 
+  const toggleEnergy = useCollapseStore((s) => s.toggle);
+  const energyCollapsed = useCollapseStore((s) => s.isCollapsed('energy'));
+
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">
       <div className="flex items-center justify-between mb-4">
@@ -133,12 +137,15 @@ export function EnergyChart({
           <Zap size={20} className="text-accent-yellow" />
           <h3 className="text-text-primary font-semibold">Energía UTE</h3>
         </div>
-        <span className="text-sm text-text-secondary">
-          {actual.entity?.state ?? "—"} W
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-text-secondary">{actual.entity?.state ?? "—"} W</span>
+          <button onClick={() => toggleEnergy('energy')} className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors">
+            {energyCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-2 mb-4">
+      {!energyCollapsed && <><div className="space-y-2 mb-4">
         {consumptionData.map((d) => {
           const pct = totalConsumption > 0 ? (d.value / totalConsumption) * 100 : 0;
           return (
@@ -231,6 +238,7 @@ export function EnergyChart({
           </ResponsiveContainer>
         </div>
       )}
+      </>}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ClimateCard } from "../components/controls/ClimateCard";
 export function CuartoPrincipal() {
   return (
     <AreaCard
+      collapseId="cuarto"
       name="Cuarto Principal"
       icon={Bed}
       iconColor="accent-blue"

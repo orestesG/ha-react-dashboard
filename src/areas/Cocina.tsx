@@ -27,6 +27,7 @@ function LeakSensor({ entityId, batteryEntityId, name }: { entityId: string; bat
 export function Cocina() {
   return (
     <AreaCard
+      collapseId="cocina"
       name="Cocina"
       icon={CookingPot}
       iconColor="accent-orange"

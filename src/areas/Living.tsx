@@ -9,6 +9,7 @@ import { ClimateCard } from "../components/controls/ClimateCard";
 export function Living() {
   return (
     <AreaCard
+      collapseId="living"
       name="Living"
       icon={Sofa}
       iconColor="accent-green"

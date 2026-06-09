@@ -1,5 +1,6 @@
 import { useEntity } from "../../hooks/useEntity";
-import { Battery, BatteryWarning, BatteryMedium, BatteryFull } from "lucide-react";
+import { useCollapseStore } from "../../store/collapse-store";
+import { Battery, ChevronDown, ChevronUp, BatteryWarning, BatteryMedium, BatteryFull } from "lucide-react";
 
 interface BatteryItem {
   entityId: string;
@@ -69,17 +70,27 @@ export function BatteryWidget({ sensors }: BatteryWidgetProps) {
     seen.forEach((items, area) => groups.push({ area, items }));
   }
 
+  const toggleBattery = useCollapseStore((s) => s.toggle);
+  const batteryCollapsed = useCollapseStore((s) => s.isCollapsed('battery'));
+
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">
-      <div className="flex items-center gap-2 mb-3">
-        <Battery size={18} className="text-accent-green" />
-        <h3 className="text-text-primary font-semibold">Baterías</h3>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Battery size={18} className="text-accent-green" />
+          <h3 className="text-text-primary font-semibold">Baterías</h3>
+        </div>
+        <button onClick={() => toggleBattery('battery')} className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors">
+          {batteryCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+        </button>
       </div>
-      <div>
-        {hasAreas
-          ? groups.map((g) => <AreaGroup key={g.area} area={g.area} items={g.items} />)
-          : sensors.map((s) => <BatteryRow key={s.entityId} {...s} />)}
-      </div>
+      {!batteryCollapsed && (
+        <div>
+          {hasAreas
+            ? groups.map((g) => <AreaGroup key={g.area} area={g.area} items={g.items} />)
+            : sensors.map((s) => <BatteryRow key={s.entityId} {...s} />)}
+        </div>
+      )}
     </div>
   );
 }

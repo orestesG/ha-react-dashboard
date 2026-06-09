@@ -22,6 +22,7 @@ function MotionSensor({ entityId }: { entityId: string }) {
 export function Oficina() {
   return (
     <AreaCard
+      collapseId="oficina"
       name="Oficina"
       icon={Armchair}
       iconColor="accent-purple"

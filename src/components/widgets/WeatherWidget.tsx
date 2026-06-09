@@ -4,9 +4,10 @@ import { useHAStore } from "../../store/ha-store";
 import {
   Cloud, Droplets, Wind, Sun, Moon, CloudSun,
   CloudRain, CloudSnow, CloudLightning, CloudFog,
-  AlertTriangle,
+  AlertTriangle, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { useCollapseStore } from "../../store/collapse-store";
 
 interface WeatherWidgetProps {
   entityId?: string;
@@ -365,6 +366,9 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
   const lowLabel = todayDaily?.templow !== undefined ? `Mín. ${Math.round(todayDaily.templow)}°` : "";
   const summary = [condLabel, [highLabel, lowLabel].filter(Boolean).join(" / ")].filter(Boolean).join(". ");
 
+  const toggleWeather = useCollapseStore((s) => s.toggle);
+  const weatherCollapsed = useCollapseStore((s) => s.isCollapsed('weather'));
+
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">
       {/* Header */}
@@ -373,13 +377,18 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
           <Cloud size={22} className="text-accent-blue" />
           <h3 className="text-text-primary font-semibold">Clima</h3>
         </div>
-        <span className="text-sm text-text-secondary capitalize flex items-center gap-1.5">
-          {condition && <ConditionIcon condition={condition} size={16} />}
-          {condition ?? state}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-text-secondary capitalize flex items-center gap-1.5">
+            {condition && <ConditionIcon condition={condition} size={16} />}
+            {condition ?? state}
+          </span>
+          <button onClick={() => toggleWeather('weather')} className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors">
+            {weatherCollapsed ? <ChevronDownIcon size={15} /> : <ChevronUpIcon size={15} />}
+          </button>
+        </div>
       </div>
 
-      {/* Current conditions */}
+      {!weatherCollapsed && <>{/* Current conditions */}
       <div className="flex items-end gap-4 mb-5 pb-5 border-b border-border-main">
         <div className="flex items-center gap-3">
           {condition && <ConditionIcon condition={condition} size={36} />}
@@ -463,6 +472,7 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
         {attribution && <span>·</span>}
         <span>{sourceLabel}</span>
       </div>
+      </>}
     </div>
   );
 }
