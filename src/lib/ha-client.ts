@@ -92,6 +92,29 @@ export async function fetchAllStates(conn: Connection): Promise<HassEntity[]> {
   return getStates(conn);
 }
 
+export async function callRestAPI(
+  conn: Connection,
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<unknown> {
+  // Use module-level auth (dev mode) or fall back to the connection's own auth (panel mode)
+  const activeAuth = auth ?? (conn as Connection & { options?: { auth?: Auth } }).options?.auth;
+  if (!activeAuth) throw new Error('[Dashboard] callRestAPI: no auth available');
+  const hassUrl = (activeAuth as typeof activeAuth & { data?: { hassUrl?: string } }).data?.hassUrl ?? '';
+  const token = activeAuth.accessToken;
+  const resp = await fetch(`${hassUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) throw new Error(`[Dashboard] REST ${resp.status} ${method} ${path}`);
+  return resp.json();
+}
+
 export function disconnectHA(): void {
   if (connection) {
     connection.close();

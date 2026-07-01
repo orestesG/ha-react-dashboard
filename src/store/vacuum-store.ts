@@ -1,7 +1,13 @@
 import { create } from 'zustand'
 import type { Connection } from 'home-assistant-js-websocket'
 import { useHAStore } from './ha-store'
-import { callService } from '../lib/ha-client'
+import { callService, callRestAPI } from '../lib/ha-client'
+import {
+  VACUUM_ENTITY,
+  VACUUM_CLEANING_MODE_ENTITY,
+  VACUUM_SUCTION_LEVEL_ENTITY,
+  VACUUM_WATER_VOLUME_ENTITY,
+} from '../dashboard.config'
 
 const HA_STORAGE_KEY = 'mi-dashboard-vacuum-v1'
 
@@ -140,6 +146,52 @@ function slotsToHADays(slots: ScheduleSlot[]): Record<string, { from: string; to
   return result
 }
 
+// IDs internos de las automatizaciones de limpieza en esta instancia de HA
+const HA_AUTO_FULL_ID  = '1780003771514'
+const HA_AUTO_SWEEP_ID = '1780103622996'
+
+// Conditions shared by both automations
+const AUTO_CONDITIONS = [
+  { condition: 'not', conditions: [{ condition: 'state', entity_id: VACUUM_ENTITY, state: ['cleaning', 'returning'] }] },
+  { condition: 'not', conditions: [{ condition: 'state', entity_id: VACUUM_CLEANING_MODE_ENTITY, state: 'unavailable' }] },
+]
+
+function buildAutomationActions(preset: PresetConfig): unknown[] {
+  const actions: unknown[] = [
+    { action: 'select.select_option', target: { entity_id: VACUUM_CLEANING_MODE_ENTITY }, data: { option: preset.mode } },
+    { action: 'select.select_option', target: { entity_id: VACUUM_SUCTION_LEVEL_ENTITY }, data: { option: preset.suction } },
+  ]
+  if (preset.water) {
+    actions.push({ action: 'select.select_option', target: { entity_id: VACUUM_WATER_VOLUME_ENTITY }, data: { option: preset.water } })
+  }
+  actions.push({ delay: '00:00:02' })
+  actions.push({ action: 'vacuum.start', target: { entity_id: VACUUM_ENTITY } })
+  return actions
+}
+
+async function updateAutomationActions(conn: Connection, presets: PresetsState): Promise<void> {
+  await Promise.allSettled([
+    callRestAPI(conn, 'POST', `/api/config/automation/config/${HA_AUTO_FULL_ID}`, {
+      id: HA_AUTO_FULL_ID,
+      alias: 'Limpieza Robot — Schedule',
+      description: 'Lanza limpieza completa (aspira + frega) según el schedule programado',
+      triggers: [{ platform: 'state', entity_id: HA_SCHEDULE_FULL, to: 'on' }],
+      conditions: AUTO_CONDITIONS,
+      actions: buildAutomationActions(presets.full),
+      mode: 'single',
+    }),
+    callRestAPI(conn, 'POST', `/api/config/automation/config/${HA_AUTO_SWEEP_ID}`, {
+      id: HA_AUTO_SWEEP_ID,
+      alias: 'Limpieza Robot — Solo Aspirado',
+      description: 'Lanza limpieza solo aspirado según el schedule programado',
+      triggers: [{ platform: 'state', entity_id: HA_SCHEDULE_SWEEP, to: 'on' }],
+      conditions: AUTO_CONDITIONS,
+      actions: buildAutomationActions(presets.sweep),
+      mode: 'single',
+    }),
+  ])
+}
+
 // Cache entry IDs to avoid repeated lookups
 let entryIdCache: Record<string, string> = {}
 
@@ -221,7 +273,7 @@ export const useVacuumStore = create<VacuumState>((set, get) => ({
 
   syncScheduleHelpersToHA: async (conn) => {
     const haConn = conn as HAConn
-    const { slots } = get()
+    const { slots, presets } = get()
     const hasFull  = slots.some(s => s.enabled && s.preset === 'full')
     const hasSweep = slots.some(s => s.enabled && s.preset === 'sweep')
     const toggleAuto = (entityId: string, on: boolean) =>
@@ -232,6 +284,7 @@ export const useVacuumStore = create<VacuumState>((set, get) => ({
       updateScheduleHelper(haConn, HA_SCHEDULE_SWEEP, slots, 'sweep'),
       toggleAuto(HA_AUTO_FULL,  hasFull),
       toggleAuto(HA_AUTO_SWEEP, hasSweep),
+      updateAutomationActions(conn, presets),
     ])
   },
 
