@@ -9,7 +9,7 @@ const HA_STORAGE_KEY = 'mi-dashboard-tabs-v1'
 // ── Main tab default layouts ──────────────────────────────────────────────────
 
 const DEFAULT_MAIN_LG: LayoutItem[] = [
-  { i: 'favorites', x: 0, y: 0,  w: 1, h: 5, static: true },
+  { i: 'favorites', x: 0, y: 0,  w: 1, h: 5, minW: 1, minH: 3 },
   { i: 'living',    x: 1, y: 0,  w: 1, h: 5 },
   { i: 'cocina',    x: 2, y: 0,  w: 1, h: 4 },
   { i: 'oficina',   x: 3, y: 0,  w: 1, h: 6 },
@@ -21,7 +21,7 @@ const DEFAULT_MAIN_LG: LayoutItem[] = [
 ]
 
 const DEFAULT_MAIN_MD: LayoutItem[] = [
-  { i: 'favorites', x: 0, y: 0,  w: 1, h: 5, static: true },
+  { i: 'favorites', x: 0, y: 0,  w: 1, h: 5, minW: 1, minH: 3 },
   { i: 'living',    x: 1, y: 0,  w: 1, h: 5 },
   { i: 'cocina',    x: 0, y: 5,  w: 1, h: 4 },
   { i: 'oficina',   x: 1, y: 5,  w: 1, h: 6 },
@@ -106,7 +106,7 @@ const DEFAULT_TABS: TabDef[] = [
 // ── Persisted shape ───────────────────────────────────────────────────────────
 
 // Bump when DEFAULT_TABS structure changes to force a reset of stored layouts.
-const TABS_VERSION = 2
+const TABS_VERSION = 3
 
 interface Persisted {
   tabs:        TabDef[]

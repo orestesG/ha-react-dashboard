@@ -21,12 +21,11 @@ function SectionHeader({ domain }: { domain: string }) {
   const label = meta?.label ?? domain
 
   return (
-    <div className="flex items-center gap-1.5 mb-1.5">
-      {Icon && <Icon size={11} className="text-text-secondary/50 shrink-0" />}
-      <span className="text-[10px] font-semibold text-text-secondary/60 uppercase tracking-widest">
+    <div className="flex items-center gap-1.5 mb-2">
+      {Icon && <Icon size={12} className="text-text-secondary/50 shrink-0" />}
+      <span className="text-xs font-medium text-text-secondary/60 uppercase tracking-wide">
         {label}
       </span>
-      {/* trailing line */}
       <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-0.5" />
     </div>
   )
@@ -51,15 +50,15 @@ export function FavoritesCard() {
   const suggested = getSuggested(5)
 
   return (
-    <div className="h-full flex flex-col bg-bg-secondary rounded-2xl border-2 border-accent-yellow/35 dark:border-accent-yellow/20 overflow-hidden">
+    <div className="h-full flex flex-col bg-bg-secondary rounded-2xl border border-accent-yellow/30 dark:border-accent-yellow/20 overflow-hidden">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <Pin size={13} className="text-accent-yellow" />
-          <h3 className="text-text-primary font-semibold text-sm">Favoritos</h3>
+      <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <Pin size={14} className="text-accent-yellow" />
+          <h3 className="text-text-primary font-semibold text-base">Favoritos</h3>
         </div>
-        <Star size={12} className="text-accent-yellow/50 fill-accent-yellow/30" />
+        <Star size={13} className="text-accent-yellow/50 fill-accent-yellow/30" />
       </div>
 
       {/* thin amber rule below header */}
@@ -79,7 +78,7 @@ export function FavoritesCard() {
             {orderedDomains.map((domain) => (
               <div key={domain}>
                 <SectionHeader domain={domain} />
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {groups.get(domain)!.map((entityId) => (
                     <CompactControl key={entityId} entityId={entityId} />
                   ))}
@@ -93,25 +92,17 @@ export function FavoritesCard() {
       {/* ── Suggested ── */}
       {suggested.length > 0 && (
         <div className="px-3 pb-3 pt-2 shrink-0 border-t border-border-main">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <TrendingUp size={11} className="text-text-secondary/50 shrink-0" />
-            <span className="text-[10px] font-semibold text-text-secondary/60 uppercase tracking-widest">
+          <div className="flex items-center gap-1.5 mb-2">
+            <TrendingUp size={12} className="text-text-secondary/50 shrink-0" />
+            <span className="text-xs font-medium text-text-secondary/60 uppercase tracking-wide">
               Más usados
             </span>
             <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-0.5" />
           </div>
-          <div className="space-y-0.5">
-            {suggested.map((entityId) => {
-              const ent   = entities[entityId]
-              const label = (ent?.attributes?.friendly_name as string | undefined)
-                ?? entityId.split('.').pop()?.replace(/_/g, ' ')
-                ?? entityId
-              return (
-                <p key={entityId} className="text-[10px] text-text-secondary/50 truncate leading-4 pl-0.5">
-                  {label}
-                </p>
-              )
-            })}
+          <div className="grid grid-cols-2 gap-2">
+            {suggested.map((entityId) => (
+              <CompactControl key={entityId} entityId={entityId} />
+            ))}
           </div>
         </div>
       )}
