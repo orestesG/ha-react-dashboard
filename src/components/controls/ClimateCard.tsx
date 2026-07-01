@@ -2,11 +2,13 @@ import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
+import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
 import { Thermometer, Plus, Minus } from "lucide-react";
 
 interface ClimateCardProps {
   entityId: string;
   name: string;
+  consoleEntityId?: string;
 }
 
 const MODES: { value: string; label: string }[] = [
@@ -18,14 +20,20 @@ const MODES: { value: string; label: string }[] = [
   { value: "fan_only", label: "Fan" },
 ];
 
-export function ClimateCard({ entityId, name }: ClimateCardProps) {
+export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
+  const consoleResult = useEntity(consoleEntityId ?? "");
   const connection = useHAStore((s) => s.connection);
 
   const state = entity?.state;
   const currentTemp = entity?.attributes?.current_temperature as number | null | undefined;
   const targetTemp = entity?.attributes?.temperature as number | null | undefined;
   const hvacModes = entity?.attributes?.hvac_modes as string[] | null | undefined;
+  const tempStep = (entity?.attributes?.target_temp_step as number | undefined) ?? 1;
+  const minTemp  = (entity?.attributes?.min_temp as number | undefined) ?? 16;
+  const maxTemp  = (entity?.attributes?.max_temp as number | undefined) ?? 30;
+
+  const consoleOn = consoleResult.entity?.state === "on";
 
   const isOff = state === "off";
 
@@ -37,6 +45,11 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
   const setTemp = async (temp: number) => {
     if (!connection) return;
     await callService(connection, "climate", "set_temperature", { temperature: temp }, { entity_id: entityId });
+  };
+
+  const toggleConsole = async () => {
+    if (!connection || !consoleEntityId) return;
+    await callService(connection, "input_boolean", "toggle", undefined, { entity_id: consoleEntityId });
   };
 
   if (loading) {
@@ -74,17 +87,21 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
           <div className="ml-auto text-right">
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setTemp(targetTemp - 0.5)}
-                className="w-7 h-7 rounded-lg bg-bg-secondary text-text-secondary hover:text-text-primary flex items-center justify-center"
+                onClick={() => setTemp(Math.max(minTemp, targetTemp - tempStep))}
+                disabled={targetTemp <= minTemp}
+                className="w-11 h-11 rounded-xl bg-bg-secondary text-text-secondary hover:text-text-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
               >
-                <Minus size={14} />
+                <Minus size={16} />
               </button>
-              <span className="text-xl font-medium text-text-primary w-14 text-center">{targetTemp.toFixed(1)}°</span>
+              <span className="text-xl font-medium text-text-primary w-14 text-center">
+                {Number.isInteger(targetTemp) ? `${targetTemp}°` : `${targetTemp.toFixed(1)}°`}
+              </span>
               <button
-                onClick={() => setTemp(targetTemp + 0.5)}
-                className="w-7 h-7 rounded-lg bg-bg-secondary text-text-secondary hover:text-text-primary flex items-center justify-center"
+                onClick={() => setTemp(Math.min(maxTemp, targetTemp + tempStep))}
+                disabled={targetTemp >= maxTemp}
+                className="w-11 h-11 rounded-xl bg-bg-secondary text-text-secondary hover:text-text-primary flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30"
               >
-                <Plus size={14} />
+                <Plus size={16} />
               </button>
             </div>
             <p className="text-xs text-text-secondary">Objetivo</p>
@@ -92,7 +109,7 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
         )}
       </div>
 
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {(hvacModes ?? MODES.map(m => m.value)).filter(m => MODES.some(mm => mm.value === m)).map((mode) => {
           const m = MODES.find(mm => mm.value === mode);
           const isActive = state === mode;
@@ -100,7 +117,7 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
             <button
               key={mode}
               onClick={() => setMode(mode)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all min-h-[44px] flex items-center active:scale-95 ${
                 isActive
                   ? "bg-accent-orange/20 text-accent-orange"
                   : "bg-bg-secondary text-text-secondary hover:text-text-primary"
@@ -110,7 +127,21 @@ export function ClimateCard({ entityId, name }: ClimateCardProps) {
             </button>
           );
         })}
+        {consoleEntityId && (
+          <button
+            onClick={toggleConsole}
+            title={consoleOn ? "Luz consola encendida" : "Luz consola apagada"}
+            className={`ml-auto min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+              consoleOn
+                ? "bg-accent-yellow/20 text-accent-yellow"
+                : "bg-bg-secondary text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            <SegmentDisplayIcon size={16} />
+          </button>
+        )}
       </div>
+
     </div>
   );
 }

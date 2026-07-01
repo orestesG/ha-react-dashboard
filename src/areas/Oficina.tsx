@@ -32,7 +32,7 @@ export function Oficina() {
       <SwitchTile entityId="switch.sonoff_10024ae654_1" name="Luz" />
       <LightTile entityId="light.philips_strip5_9631_light" name="LED Monitor" />
       <CoverTile entityId="cover.sonoff_10023e3f9e" name="Persiana" />
-      <ClimateCard entityId="climate.aire_cuarto_chico" name="Aire" />
+      <ClimateCard entityId="climate.aire_cuarto_chico" name="Aire" consoleEntityId="input_boolean.toggle_air_console_light" />
       <SwitchTile entityId="switch.sonoff_10023c5cd0" name="Suko" />
       <MotionSensor entityId="binary_sensor.sensor_movimiento_occupancy" />
     </AreaCard>
