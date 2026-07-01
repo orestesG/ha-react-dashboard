@@ -150,7 +150,7 @@ export function LightTile({ entityId, name }: LightTileProps) {
       </div>
       {controlsVisible && (
         <div className="bg-bg-tertiary rounded-b-xl px-4 py-3 -mt-1 space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 py-2">
             <Moon size={14} className="text-text-secondary shrink-0" />
             <input
               type="range"
@@ -158,10 +158,12 @@ export function LightTile({ entityId, name }: LightTileProps) {
               max={255}
               value={localBrightness}
               onChange={(e) => handleBrightnessChange(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer
+              className="w-full h-3 rounded-full appearance-none cursor-pointer
                 bg-gray-700
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-yellow"
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-yellow
+                [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
+                [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent-yellow [&::-moz-range-thumb]:border-0"
             />
             <Sun size={14} className="text-text-secondary shrink-0" />
             <span className="text-xs text-text-secondary w-8 text-right tabular-nums">{brightnessPct}%</span>
