@@ -88,7 +88,7 @@ export function CompactControl({ entityId }: { entityId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 bg-bg-tertiary animate-pulse">
+      <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 bg-bg-tertiary animate-pulse">
         <div className="w-3.5 h-3.5 rounded bg-gray-500/40 shrink-0" />
         <div className="h-2.5 w-10 rounded bg-gray-500/40" />
       </div>
@@ -103,17 +103,16 @@ export function CompactControl({ entityId }: { entityId: string }) {
 
   return (
     <>
-      {/* Same structure as Tile — horizontal icon + text, just scaled down */}
       <button
         onClick={handleTap}
-        className={`flex items-center gap-1.5 rounded-xl px-2.5 py-2 w-full
+        className={`flex items-center gap-2 rounded-xl px-3 py-2.5 w-full
           transition-all duration-150 active:scale-95
           ${colors.bg} ${colors.text}`}
       >
-        <Icon size={14} className="shrink-0" />
+        <Icon size={15} className="shrink-0" />
         <div className="text-left min-w-0">
-          <p className="text-[10px] font-medium truncate leading-tight">{label}</p>
-          <p className={`text-[9px] leading-tight truncate ${active ? 'opacity-70' : 'text-text-secondary'}`}>
+          <p className="text-xs font-medium truncate leading-tight">{label}</p>
+          <p className={`text-[10px] leading-tight truncate ${active ? 'opacity-70' : 'text-text-secondary'}`}>
             {stateText(domain, state, attrs)}
           </p>
         </div>
