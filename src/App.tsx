@@ -122,21 +122,21 @@ function App({ panelMode = false }: AppProps) {
           {editMode && (
             <button
               onClick={resetLayouts}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-bg-secondary border border-border-main text-text-secondary hover:text-text-primary transition-colors"
+              className="flex items-center gap-1.5 text-sm px-3 py-2.5 rounded-xl bg-bg-secondary border border-border-main text-text-secondary hover:text-text-primary transition-colors active:scale-95"
             >
-              <RotateCcw size={13} />
+              <RotateCcw size={14} />
               Restablecer
             </button>
           )}
           <button
             onClick={toggleEditMode}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors ${
+            className={`flex items-center gap-1.5 text-sm px-3 py-2.5 rounded-xl border transition-colors active:scale-95 ${
               editMode
                 ? "bg-accent-blue text-white border-accent-blue"
                 : "bg-bg-secondary border-border-main text-text-secondary hover:text-text-primary"
             }`}
           >
-            {editMode ? <Check size={13} /> : <LayoutGrid size={13} />}
+            {editMode ? <Check size={14} /> : <LayoutGrid size={14} />}
             {editMode ? "Listo" : "Editar"}
           </button>
 

@@ -72,7 +72,7 @@ export function AreaCard({
           {collapseId && (
             <button
               onClick={() => toggle(collapseId)}
-              className="p-1 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-text-secondary hover:text-text-primary transition-colors"
             >
               {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
             </button>
