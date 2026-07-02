@@ -18,7 +18,7 @@ export function CuartoPrincipal() {
       <SwitchTile entityId="switch.sonoff_10024ae259_1" name="Luz" />
       <LightTile entityId="light.gbk_h613d_323f" name="LED Cielo" />
       <CoverTile entityId="cover.sonoff_10023e3f19" name="Persiana" />
-      <ClimateCard entityId="climate.aire_cuarto_principal_2" name="Aire" />
+      <ClimateCard entityId="climate.aire_cuarto_principal_2" name="Aire" consoleEntityId="input_boolean.toggle_air_console_light" />
     </AreaCard>
   );
 }
