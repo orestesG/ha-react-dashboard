@@ -11,6 +11,17 @@ const TARIFF_COLORS: Record<string, string> = {
   Valle: "#10b981", // accent-green
 };
 
+function fmtProxima(isoStr: string | undefined): string {
+  if (!isoStr || isoStr === 'unavailable' || isoStr === 'unknown') return '—';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '—';
+  const now = new Date();
+  const time = d.toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  if (d.toDateString() === new Date(now.getTime() + 86_400_000).toDateString()) return `mañana ${time}`;
+  return d.toLocaleDateString('es-UY', { day: '2-digit', month: 'short' }) + ' ' + time;
+}
+
 interface EnergyChartProps {
   actualEntityId?: string;
   puntaEntityId?: string;
@@ -20,6 +31,7 @@ interface EnergyChartProps {
   deudaEntityId?: string;
   historialEntityId?: string;
   facturacionEntityId?: string;
+  proximaEntityId?: string;
 }
 
 export function EnergyChart({
@@ -31,6 +43,7 @@ export function EnergyChart({
   deudaEntityId = "sensor.ute_8647965855_deuda_total",
   historialEntityId = "sensor.ute_8647965855_historial_mensual",
   facturacionEntityId = "sensor.ute_8647965855_historial_facturacion",
+  proximaEntityId = "sensor.ute_8647965855_proxima_actualizacion",
 }: EnergyChartProps) {
   const actual = useEntity(actualEntityId);
   const punta = useEntity(puntaEntityId);
@@ -40,8 +53,9 @@ export function EnergyChart({
   const deuda = useEntity(deudaEntityId);
   const historial = useEntity(historialEntityId);
   const facturacion = useEntity(facturacionEntityId);
+  const proxima = useEntity(proximaEntityId);
 
-  const entities = [actual, punta, llano, valle, gasto, deuda, historial, facturacion];
+  const entities = [actual, punta, llano, valle, gasto, deuda, historial, facturacion, proxima];
   const loading = entities.some(e => e.loading);
 
   if (loading) {
@@ -168,7 +182,7 @@ export function EnergyChart({
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border-main">
+      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border-main">
         <div>
           <p className="text-xs text-text-secondary">Gasto actual</p>
           <p className="text-lg font-semibold text-text-primary">
@@ -179,6 +193,12 @@ export function EnergyChart({
           <p className="text-xs text-text-secondary">Deuda total</p>
           <p className="text-lg font-semibold text-accent-red">
             {deuda.entity?.state ? `$${parseFloat(deuda.entity.state).toFixed(2)}` : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-text-secondary">Próxima actualiz.</p>
+          <p className="text-lg font-semibold text-text-primary tabular-nums">
+            {fmtProxima(proxima.entity?.state)}
           </p>
         </div>
       </div>
