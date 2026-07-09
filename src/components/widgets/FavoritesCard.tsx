@@ -1,7 +1,6 @@
 import { Pin, Star, TrendingUp, Lightbulb, Power, ChevronUp, Thermometer, Tv, Bot } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useFavoritesStore } from '../../store/favorites-store'
-import { useHAStore } from '../../store/ha-store'
 import { CompactControl } from '../controls/CompactControl'
 
 const DOMAIN_ORDER = ['light', 'switch', 'media_player', 'climate', 'cover', 'vacuum']
@@ -34,7 +33,6 @@ function SectionHeader({ domain }: { domain: string }) {
 export function FavoritesCard() {
   const favorites    = useFavoritesStore((s) => s.favorites)
   const getSuggested = useFavoritesStore((s) => s.getSuggested)
-  const entities     = useHAStore((s) => s.entities)
 
   const groups = new Map<string, string[]>()
   for (const id of favorites) {
