@@ -122,7 +122,7 @@ function App({ panelMode = false }: AppProps) {
           {editMode && (
             <button
               onClick={resetLayouts}
-              className="flex items-center gap-1.5 text-sm px-3 py-2.5 rounded-xl bg-bg-secondary border border-border-main text-text-secondary hover:text-text-primary transition-colors active:scale-95"
+              className="flex items-center gap-1.5 text-sm px-3 py-3 rounded-xl bg-bg-secondary border border-border-main text-text-secondary hover:text-text-primary transition-colors active:scale-95"
             >
               <RotateCcw size={14} />
               Restablecer
@@ -130,7 +130,7 @@ function App({ panelMode = false }: AppProps) {
           )}
           <button
             onClick={toggleEditMode}
-            className={`flex items-center gap-1.5 text-sm px-3 py-2.5 rounded-xl border transition-colors active:scale-95 ${
+            className={`flex items-center gap-1.5 text-sm px-3 py-3 rounded-xl border transition-colors active:scale-95 ${
               editMode
                 ? "bg-accent-blue text-white border-accent-blue"
                 : "bg-bg-secondary border-border-main text-text-secondary hover:text-text-primary"
@@ -153,7 +153,7 @@ function App({ panelMode = false }: AppProps) {
               </span>
             ) : (
               <span className="text-xs text-text-secondary flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-text-secondary" />
                 Conectando...
               </span>
             )}

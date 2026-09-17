@@ -88,9 +88,9 @@ export function CompactControl({ entityId }: { entityId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 bg-bg-tertiary animate-pulse">
-        <div className="w-3.5 h-3.5 rounded bg-gray-500/40 shrink-0" />
-        <div className="h-2.5 w-10 rounded bg-gray-500/40" />
+      <div className="flex items-center gap-2 rounded-xl px-3 py-3 bg-bg-tertiary animate-pulse">
+        <div className="w-3.5 h-3.5 rounded-lg bg-bg-tertiary/60 shrink-0" />
+        <div className="h-2.5 w-10 rounded-lg bg-bg-tertiary/60" />
       </div>
     )
   }
@@ -105,7 +105,7 @@ export function CompactControl({ entityId }: { entityId: string }) {
     <>
       <button
         onClick={handleTap}
-        className={`flex items-center gap-2 rounded-xl px-3 py-2.5 w-full
+        className={`flex items-center gap-2 rounded-xl px-3 py-3 w-full
           transition-all duration-150 active:scale-95
           ${colors.bg} ${colors.text}`}
       >

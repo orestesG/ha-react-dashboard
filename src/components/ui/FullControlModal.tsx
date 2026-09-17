@@ -38,7 +38,7 @@ export function FullControlModal({ entityId, label, onClose }: Props) {
         <FullControl entityId={entityId} label={label} />
         <button
           onClick={onClose}
-          className="mt-3 w-full py-2.5 rounded-xl bg-bg-secondary border border-border-main
+          className="mt-3 w-full py-3 rounded-xl bg-bg-secondary border border-border-main
             text-text-secondary text-sm hover:text-text-primary transition-colors"
         >
           Cerrar

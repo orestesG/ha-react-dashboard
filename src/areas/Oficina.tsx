@@ -11,7 +11,7 @@ function MotionSensor({ entityId }: { entityId: string }) {
   const { entity } = useEntity(entityId);
   const isActive = entity?.state === "on";
   return (
-    <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${isActive ? "bg-accent-green/20 text-accent-green" : "bg-bg-tertiary text-gray-500"}`}>
+    <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${isActive ? "bg-accent-green/20 text-accent-green" : "bg-bg-tertiary text-text-secondary"}`}>
       <Activity size={16} />
       <span>Movimiento</span>
       <span className="ml-auto">{isActive ? "Detectado" : "—"}</span>

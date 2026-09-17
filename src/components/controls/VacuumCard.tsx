@@ -166,8 +166,8 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
   if (loading) {
     return (
       <div className="rounded-2xl p-5 bg-bg-tertiary animate-pulse space-y-3">
-        <div className="h-5 w-24 rounded bg-gray-600" />
-        <div className="h-32 w-full rounded bg-gray-600" />
+        <div className="h-5 w-24 rounded-lg bg-bg-tertiary" />
+        <div className="h-32 w-full rounded-xl bg-bg-tertiary" />
       </div>
     );
   }
@@ -176,7 +176,7 @@ export function VacuumCard({ entityId, name = "Robot" }: VacuumCardProps) {
     const cfg = presets[key];
     const wantsWater = key === "full";
     return (
-      <div className="mt-2 p-2.5 rounded-lg bg-bg-tertiary space-y-2">
+      <div className="mt-2 p-3 rounded-lg bg-bg-tertiary space-y-2">
         {modeOptions.length > 0 && (
           <div>
             <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Modo</p>

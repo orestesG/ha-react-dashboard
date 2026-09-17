@@ -25,7 +25,7 @@ function SectionHeader({ domain }: { domain: string }) {
       <span className="text-xs font-medium text-text-secondary/60 uppercase tracking-wide">
         {label}
       </span>
-      <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-0.5" />
+      <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-1" />
     </div>
   )
 }
@@ -63,7 +63,7 @@ export function FavoritesCard() {
       <div className="h-px bg-accent-yellow/20 dark:bg-accent-yellow/10 mx-4 shrink-0" />
 
       {/* ── Controls (scrollable) ── */}
-      <div className="flex-1 overflow-y-auto px-3 pt-2.5 min-h-0">
+      <div className="flex-1 overflow-y-auto px-3 pt-3 min-h-0">
         {favorites.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 py-6">
             <Star size={22} className="text-text-secondary/25" />
@@ -95,7 +95,7 @@ export function FavoritesCard() {
             <span className="text-xs font-medium text-text-secondary/60 uppercase tracking-wide">
               Más usados
             </span>
-            <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-0.5" />
+            <div className="flex-1 h-px bg-black/8 dark:bg-white/8 ml-1" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             {suggested.map((entityId) => (

@@ -88,7 +88,7 @@ function SlotRow({
           <button
             type="button"
             onClick={() => onChange({ enabled: !slot.enabled })}
-            className="flex items-center gap-2.5"
+            className="flex items-center gap-3"
             aria-label={slot.enabled ? "Deshabilitar" : "Habilitar"}
           >
             <div className={`w-12 h-6 rounded-full transition-colors relative ${slot.enabled ? "bg-accent-blue" : "bg-bg-tertiary border border-border-main"}`}>
@@ -173,7 +173,7 @@ function SlotRow({
             <Settings2 size={16} />
             <span className="text-sm font-medium">Opciones avanzadas</span>
             {(slot.suctionOverride || slot.vacuumPasses || slot.mopPasses) && (
-              <span className="px-2 py-0.5 rounded-full bg-accent-blue text-white text-[10px] font-semibold">
+              <span className="px-2 py-1 rounded-full bg-accent-blue text-white text-[10px] font-semibold">
                 personalizado
               </span>
             )}
@@ -188,7 +188,7 @@ function SlotRow({
             {/* Suction */}
             <div>
               <p className="text-sm font-medium text-text-primary mb-1">Nivel de succión</p>
-              <p className="text-xs text-text-secondary mb-2.5">
+              <p className="text-xs text-text-secondary mb-3">
                 "Por defecto" usa la configuración global del preset.
               </p>
               <div className="flex gap-2 flex-wrap">
@@ -205,7 +205,7 @@ function SlotRow({
 
             {/* Vacuum passes */}
             <div>
-              <p className="text-sm font-medium text-text-primary mb-2.5">Pasadas de aspiradora</p>
+              <p className="text-sm font-medium text-text-primary mb-3">Pasadas de aspiradora</p>
               <div className="flex gap-2">
                 <OptionPill active={!slot.vacuumPasses} onClick={() => onChange({ vacuumPasses: undefined })} wide>
                   Por defecto
@@ -221,7 +221,7 @@ function SlotRow({
             {/* Mop passes */}
             {slot.preset === "full" && (
               <div>
-                <p className="text-sm font-medium text-text-primary mb-2.5">Pasadas de mopa</p>
+                <p className="text-sm font-medium text-text-primary mb-3">Pasadas de mopa</p>
                 <div className="flex gap-2">
                   <OptionPill active={!slot.mopPasses} onClick={() => onChange({ mopPasses: undefined })} wide>
                     Por defecto

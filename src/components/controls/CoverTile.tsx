@@ -92,8 +92,8 @@ export function CoverTile({ entityId, name }: CoverTileProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-3 rounded-xl px-4 py-3 bg-bg-tertiary animate-pulse">
-        <div className="w-6 h-6 rounded bg-gray-600" />
-        <div className="h-4 w-20 rounded bg-gray-600" />
+        <div className="w-6 h-6 rounded-lg bg-bg-tertiary" />
+        <div className="h-4 w-20 rounded-lg bg-bg-tertiary" />
       </div>
     );
   }

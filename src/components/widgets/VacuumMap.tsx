@@ -388,13 +388,13 @@ function VacuumMapInner({
       </svg>
 
       {showPopup && selectedRoom && popupStyle && (
-        <div className="absolute z-20 bg-bg-secondary border border-border-main rounded-xl shadow-2xl p-2.5 min-w-[180px] max-w-[240px]"
+        <div className="absolute z-20 bg-bg-secondary border border-border-main rounded-xl shadow-2xl p-3 min-w-[180px] max-w-[240px]"
              style={popupStyle} onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-text-primary capitalize truncate">
               {selectedRoom.name ?? `Habitación ${selectedRoom.room_id}`}
             </span>
-            <button onClick={() => onRoomClick?.(selectedRoomId!)} className="p-0.5 rounded text-text-secondary hover:text-text-primary" aria-label="Cerrar"><X size={12} /></button>
+            <button onClick={() => onRoomClick?.(selectedRoomId!)} className="p-1 rounded text-text-secondary hover:text-text-primary" aria-label="Cerrar"><X size={12} /></button>
           </div>
 
           {suctionOptions.length > 0 && (
@@ -403,7 +403,7 @@ function VacuumMapInner({
               <div className="flex flex-wrap gap-1">
                 {suctionOptions.map(opt => (
                   <button key={opt} onClick={() => setPopupSuction(opt)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium capitalize transition-all ${opt === popupSuction ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
+                    className={`px-1.5 py-1 rounded text-[10px] font-medium capitalize transition-all ${opt === popupSuction ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
                     {opt}
                   </button>
                 ))}
@@ -411,12 +411,12 @@ function VacuumMapInner({
             </div>
           )}
 
-          <div className="mb-2.5">
+          <div className="mb-3">
             <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Pasadas</p>
             <div className="flex gap-1">
               {[1, 2, 3].map(n => (
                 <button key={n} onClick={() => setPopupRepeats(n)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${n === popupRepeats ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
+                  className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${n === popupRepeats ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
                   {n}
                 </button>
               ))}

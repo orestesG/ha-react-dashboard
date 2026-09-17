@@ -37,11 +37,11 @@ function CommuteRow({ entityId, label, icon: Icon }: CommuteRoute) {
     return (
       <div className="py-2 animate-pulse">
         <div className="flex items-center gap-3 mb-1.5">
-          <div className="w-4 h-4 rounded bg-gray-500/30 shrink-0" />
-          <div className="h-3 w-20 rounded bg-gray-500/30 flex-1" />
-          <div className="h-3 w-12 rounded bg-gray-500/30" />
+          <div className="w-4 h-4 rounded-lg bg-bg-tertiary shrink-0" />
+          <div className="h-3 w-20 rounded-lg bg-bg-tertiary flex-1" />
+          <div className="h-3 w-12 rounded-lg bg-bg-tertiary" />
         </div>
-        <div className="h-1.5 w-full rounded-full bg-gray-500/20 ml-7" />
+        <div className="h-1.5 w-full rounded-full bg-bg-tertiary ml-7" />
       </div>
     )
   }
