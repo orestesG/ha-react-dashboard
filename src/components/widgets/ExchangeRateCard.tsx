@@ -12,18 +12,18 @@ function fmtTime(iso: string) {
 
 function SkeletonRow() {
   return (
-    <div className="flex items-center gap-3 py-2.5 animate-pulse">
-      <div className="h-3 w-12 rounded bg-gray-500/30" />
-      <div className="flex-1 h-3 rounded bg-gray-500/20" />
-      <div className="h-3 w-20 rounded bg-gray-500/30" />
+    <div className="flex items-center gap-3 py-3 animate-pulse">
+      <div className="h-3 w-12 rounded-lg bg-bg-tertiary" />
+      <div className="flex-1 h-3 rounded-lg bg-bg-tertiary" />
+      <div className="h-3 w-20 rounded-lg bg-bg-tertiary" />
     </div>
   )
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-border-main last:border-0">
-      <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide w-10 pt-0.5 shrink-0">
+    <div className="flex items-start gap-3 py-3 border-b border-border-main last:border-0">
+      <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide w-10 pt-1 shrink-0">
         {label}
       </span>
       <div className="flex-1">{children}</div>

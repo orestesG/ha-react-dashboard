@@ -55,8 +55,8 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
   if (loading) {
     return (
       <div className="rounded-2xl p-5 bg-bg-tertiary animate-pulse space-y-3">
-        <div className="h-5 w-24 rounded bg-bg-secondary" />
-        <div className="h-10 w-20 rounded bg-bg-secondary" />
+        <div className="h-5 w-24 rounded-lg bg-bg-secondary" />
+        <div className="h-10 w-20 rounded-xl bg-bg-secondary" />
       </div>
     );
   }
@@ -70,7 +70,7 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
         </div>
         <div className="flex items-center gap-1">
           <FavoriteStar entityId={entityId} />
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isOff ? "bg-bg-secondary text-text-secondary" : "bg-accent-orange/20 text-accent-orange"}`}>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${isOff ? "bg-bg-secondary text-text-secondary" : "bg-accent-orange/20 text-accent-orange"}`}>
             {isOff ? "Off" : state?.toUpperCase()}
           </span>
         </div>

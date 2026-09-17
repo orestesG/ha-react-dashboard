@@ -316,9 +316,9 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
   if (loading) {
     return (
       <div className="bg-bg-secondary rounded-2xl p-5 border border-bg-tertiary animate-pulse space-y-3">
-        <div className="h-5 w-28 rounded bg-gray-600" />
-        <div className="h-8 w-20 rounded bg-gray-600" />
-        <div className="h-28 rounded bg-gray-600" />
+        <div className="h-5 w-28 rounded-lg bg-bg-tertiary" />
+        <div className="h-8 w-20 rounded-lg bg-bg-tertiary" />
+        <div className="h-28 rounded-xl bg-bg-tertiary" />
       </div>
     );
   }

@@ -17,7 +17,7 @@ const chipColors = {
 
 export function MetricChip({ icon, value, unit, color = "blue" }: MetricChipProps) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${chipColors[color]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium ${chipColors[color]}`}>
       <span className="shrink-0">{icon}</span>
       <span>{value}</span>
       {unit && <span className="opacity-70">{unit}</span>}

@@ -70,7 +70,7 @@ export function MediaPlayerCard({ entityId, name }: MediaPlayerCardProps) {
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
             isOff
               ? "bg-bg-secondary text-text-secondary"
               : isPlaying
