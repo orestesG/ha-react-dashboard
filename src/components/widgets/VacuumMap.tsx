@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { Play, X } from "lucide-react";
 import { useEntity } from "../../hooks/useEntity";
 
 interface Point { x: number; y: number; a?: number }
@@ -19,14 +18,11 @@ interface Area {
 }
 interface Obstacle { x: number; y: number; type?: string }
 
-interface RoomCleanOptions { suction?: string; repeats: number }
-
 export interface VacuumMapProps {
   cameraEntityId: string;
-  suctionEntityId?: string;
-  selectedRoomId?: number | null;
+  /** Rooms highlighted as selected (multi-select) */
+  selectedRoomIds?: number[];
   onRoomClick?: (roomId: number) => void;
-  onRoomClean?: (segmentId: number, options: RoomCleanOptions) => void;
   /** Base mirror/flip applied before rotationDeg */
   transform?: "none" | "mirrorH" | "mirrorV" | "rotate180";
   /** Additional clockwise rotation in degrees applied after transform */
@@ -39,7 +35,6 @@ export interface VacuumMapProps {
   onPanChange?: (pan: { x: number; y: number }) => void;
   className?: string;
   showLabels?: boolean;
-  showPopup?: boolean;
 }
 
 const ROOM_FILLS   = ["#dbeafe","#dcfce7","#fef3c7","#fce7f3","#e0e7ff","#fed7aa","#cffafe","#fef9c3"];
@@ -61,10 +56,8 @@ function pickRoomIcon(name?: string): string {
 
 function VacuumMapInner({
   cameraEntityId,
-  suctionEntityId,
-  selectedRoomId,
+  selectedRoomIds = [],
   onRoomClick,
-  onRoomClean,
   transform   = "mirrorH",
   rotationDeg  = 0,
   zoom         = 1,
@@ -72,15 +65,11 @@ function VacuumMapInner({
   onPanChange,
   className    = "",
   showLabels  = true,
-  showPopup   = false,
 }: VacuumMapProps) {
   const { entity }             = useEntity(cameraEntityId);
-  const { entity: suctionEnt } = useEntity(suctionEntityId ?? "");
   const attrs = entity?.attributes as Record<string, unknown> | undefined;
 
   const [svgRect,     setSvgRect]     = useState<{ width: number; height: number } | null>(null);
-  const [popupSuction,setPopupSuction]= useState<string>("");
-  const [popupRepeats,setPopupRepeats]= useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const observerRef = useRef<ResizeObserver | null>(null);
   const dragStart   = useRef<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null);
@@ -207,14 +196,6 @@ function VacuumMapInner({
 
   useEffect(() => () => { observerRef.current?.disconnect(); }, []);
 
-  useEffect(() => {
-    if (selectedRoomId == null) { setPopupRepeats(1); setPopupSuction(""); }
-    else { setPopupSuction((suctionEnt?.state as string | undefined) ?? ""); setPopupRepeats(1); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoomId]);
-
-  const suctionOptions = (suctionEnt?.attributes?.options as string[] | undefined) ?? [];
-
   // Drag handlers — convert pixel delta to SVG coordinate delta using the current viewBox
   const panEnabled = !!onPanChange;
 
@@ -275,30 +256,6 @@ function VacuumMapInner({
   const dotSpacing = maxDim * 0.04;
   const dotR       = maxDim * 0.0025;
 
-  const selectedRoom = selectedRoomId != null ? rooms.find(r => r.room_id === selectedRoomId) : undefined;
-
-  let popupStyle: React.CSSProperties | undefined;
-  if (showPopup && selectedRoom && svgRect && svgRect.width > 0 && svgRect.height > 0) {
-    const vbAspect  = viewBox.w / viewBox.h;
-    const ctxAspect = svgRect.width / svgRect.height;
-    let renderedW: number, renderedH: number, offX: number, offY: number;
-    if (vbAspect > ctxAspect) {
-      renderedW = svgRect.width; renderedH = svgRect.width / vbAspect;
-      offX = 0; offY = (svgRect.height - renderedH) / 2;
-    } else {
-      renderedH = svgRect.height; renderedW = svgRect.height * vbAspect;
-      offX = (svgRect.width - renderedW) / 2; offY = 0;
-    }
-    const cxPx = offX + ((((selectedRoom.x0 + selectedRoom.x1) / 2) - viewBox.x) / viewBox.w) * renderedW;
-    const cyPx = offY + ((((selectedRoom.y0 + selectedRoom.y1) / 2) - viewBox.y) / viewBox.h) * renderedH;
-    popupStyle = { left: `${cxPx}px`, top: `${cyPx}px`, transform: "translate(-50%, -50%)" };
-  }
-
-  const launchClean = () => {
-    if (!onRoomClean || selectedRoomId == null) return;
-    onRoomClean(selectedRoomId, { suction: popupSuction || undefined, repeats: popupRepeats });
-  };
-
   return (
     <div className={`relative ${className}`}>
       <svg
@@ -328,7 +285,7 @@ function VacuumMapInner({
           {rooms.map(room => {
             const id  = room.room_id ?? -1;
             const ci  = (room.color_index ?? id) % ROOM_FILLS.length;
-            const sel = id === selectedRoomId;
+            const sel = selectedRoomIds.includes(id);
             return (
               <rect key={`r-${id}`}
                 x={room.x0} y={room.y0} width={room.x1 - room.x0} height={room.y1 - room.y0}
@@ -386,49 +343,6 @@ function VacuumMapInner({
           </g>
         )}
       </svg>
-
-      {showPopup && selectedRoom && popupStyle && (
-        <div className="absolute z-20 bg-bg-secondary border border-border-main rounded-xl shadow-2xl p-3 min-w-[180px] max-w-[240px]"
-             style={popupStyle} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-text-primary capitalize truncate">
-              {selectedRoom.name ?? `Habitación ${selectedRoom.room_id}`}
-            </span>
-            <button onClick={() => onRoomClick?.(selectedRoomId!)} className="p-1 rounded text-text-secondary hover:text-text-primary" aria-label="Cerrar"><X size={12} /></button>
-          </div>
-
-          {suctionOptions.length > 0 && (
-            <div className="mb-2">
-              <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Succión</p>
-              <div className="flex flex-wrap gap-1">
-                {suctionOptions.map(opt => (
-                  <button key={opt} onClick={() => setPopupSuction(opt)}
-                    className={`px-1.5 py-1 rounded text-[10px] font-medium capitalize transition-all ${opt === popupSuction ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mb-3">
-            <p className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Pasadas</p>
-            <div className="flex gap-1">
-              {[1, 2, 3].map(n => (
-                <button key={n} onClick={() => setPopupRepeats(n)}
-                  className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${n === popupRepeats ? "bg-accent-blue/20 text-accent-blue" : "bg-bg-tertiary text-text-secondary hover:text-text-primary"}`}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button onClick={launchClean}
-            className="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-accent-green/20 text-accent-green text-xs font-medium hover:bg-accent-green/30 transition-all">
-            <Play size={11} /> Limpiar
-          </button>
-        </div>
-      )}
     </div>
   );
 }

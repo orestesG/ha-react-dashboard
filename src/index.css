@@ -37,7 +37,7 @@ body {
   opacity: 1;
 }
 .react-resizable-handle-se {
-  bottom: 0;
+  bottom: 16px; /* GRID_GAP: each item reserves the gap below its card */
   right: 0;
   width: 44px;
   height: 44px;
@@ -68,4 +68,19 @@ body {
 .layout-edit-mode .react-resizable-handle-se::after {
   border-right: 2px solid var(--color-accent-blue);
   border-bottom: 2px solid var(--color-accent-blue);
+}
+
+/* Grid items fit their content (App.tsx GridItem): the item's bottom 16px is the gap between cards */
+.react-grid-item.react-grid-placeholder {
+  background-clip: content-box;
+  padding-bottom: 16px;
+}
+/* While resizing, the card follows the handle instead of its content */
+.react-grid-item.resizing .grid-fit {
+  max-height: 100% !important;
+}
+/* Until every card is measured, place them without animating the shrink */
+.grid-fitting .react-grid-layout,
+.grid-fitting .react-grid-item {
+  transition: none !important;
 }

@@ -101,6 +101,8 @@ export async function callRestAPI(
   // Use module-level auth (dev mode) or fall back to the connection's own auth (panel mode)
   const activeAuth = auth ?? (conn as Connection & { options?: { auth?: Auth } }).options?.auth;
   if (!activeAuth) throw new Error('[Dashboard] callRestAPI: no auth available');
+  // Panel mode reuses HA's short-lived (30 min) access token — refresh it or the call 401s
+  if (activeAuth.expired) await activeAuth.refreshAccessToken();
   const hassUrl = (activeAuth as typeof activeAuth & { data?: { hassUrl?: string } }).data?.hassUrl ?? '';
   const token = activeAuth.accessToken;
   const resp = await fetch(`${hassUrl}${path}`, {
@@ -111,7 +113,10 @@ export async function callRestAPI(
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!resp.ok) throw new Error(`[Dashboard] REST ${resp.status} ${method} ${path}`);
+  if (!resp.ok) {
+    const detail = (await resp.text().catch(() => '')).slice(0, 200);
+    throw new Error(`[Dashboard] REST ${resp.status} ${method} ${path}${detail ? ` — ${detail}` : ''}`);
+  }
   return resp.json();
 }
 
