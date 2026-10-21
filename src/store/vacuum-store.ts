@@ -2,45 +2,43 @@ import { create } from 'zustand'
 import type { Connection } from 'home-assistant-js-websocket'
 import { useHAStore } from './ha-store'
 import { callService, callRestAPI } from '../lib/ha-client'
+import { VACUUM_ENTITY } from '../dashboard.config'
 import {
-  VACUUM_ENTITY,
-  VACUUM_CLEANING_MODE_ENTITY,
-  VACUUM_SUCTION_LEVEL_ENTITY,
-  VACUUM_WATER_VOLUME_ENTITY,
-} from '../dashboard.config'
+  DAY_KEYS,
+  buildAutomationConfig,
+  buildScriptConfig,
+  deviceSlug,
+  findRoomModeEntities,
+  normalizeSlot,
+  sameConfig,
+  slotsToScheduleDays,
+  type ScheduleSlot,
+} from '../lib/vacuum'
+
+export type { ScheduleSlot } from '../lib/vacuum'
 
 const HA_STORAGE_KEY = 'mi-dashboard-vacuum-v1'
 
-// Legacy localStorage keys — read once for migration, then cleared
-const LS_KEY_PRESETS = 'vacuum-presets-v1'
-const LS_KEY_VIEW    = 'vacuum-view-v1'
+// Schedule helper whose active block (and its `data`) triggers a cleaning
+const HA_SCHEDULE_ID     = 'limpieza_robot'
+export const HA_SCHEDULE_ENTITY = `schedule.${HA_SCHEDULE_ID}`
 
-// HA entity IDs for the two schedule helpers
-const HA_SCHEDULE_FULL  = 'schedule.limpieza_robot'
-const HA_SCHEDULE_SWEEP = 'schedule.limpieza_robot_solo_aspirado'
+// Automation that forwards the active block to the script (internal id of this HA instance)
+const HA_AUTOMATION_ID           = '1780003771514'
+export const HA_AUTOMATION_ENTITY = 'automation.limpieza_robot_schedule'
 
-// HA automations triggered by each schedule. A schedule must always hold at least
-// one range (HA rejects an empty one), so when a preset has no slots we push an inert
-// 00:00 placeholder AND disable its automation — otherwise the placeholder would fire
-// an unwanted cleaning at midnight.
-const HA_AUTO_FULL  = 'automation.limpieza_robot_schedule'
-const HA_AUTO_SWEEP = 'automation.limpieza_robot_solo_aspirado'
+// Script that actually runs a cleaning; provisioned by the dashboard
+const HA_SCRIPT_OBJECT_ID    = 'mi_dashboard_limpieza_robot'
+export const HA_SCRIPT_ENTITY = `script.${HA_SCRIPT_OBJECT_ID}`
+const HA_BACKUP_SCENE_ID     = 'mi_dashboard_robot_modos_backup'
 
-const DAY_KEYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const
+// Legacy "solo aspirado" schedule + automation — sweep-only is now a per-slot option,
+// so these are kept empty / off (not deleted: the user can remove them from HA).
+const HA_LEGACY_SCHEDULE_ID     = 'limpieza_robot_solo_aspirado'
+const HA_LEGACY_AUTOMATION      = 'automation.limpieza_robot_solo_aspirado'
 
 type HAConn = Connection & {
   sendMessagePromise: (msg: unknown) => Promise<unknown>
-}
-
-export interface PresetConfig {
-  mode:    string
-  suction: string
-  water:   string
-}
-
-export interface PresetsState {
-  full:  PresetConfig
-  sweep: PresetConfig
 }
 
 export type RotDeg = 0 | 90 | 180 | 270
@@ -80,37 +78,31 @@ function normalizeView(v: unknown): ViewState {
   }
 }
 
-export interface ScheduleSlot {
-  id:      string
-  days:    number[]        // 0=Mon … 6=Sun
-  time:    string          // "HH:MM"
-  preset:  'full' | 'sweep'
-  enabled: boolean
-  // Advanced — undefined means inherit from the global preset
-  suctionOverride?: string
-  vacuumPasses?:    number
-  mopPasses?:       number
-}
-
-const SLOTS_VERSION = 3  // bump when DEFAULT_SLOTS changes to force migration
+// v4: slots carry RunOptions (sweepOnly/suction/passes) instead of a global preset.
+// Older versions are migrated slot by slot by normalizeSlot — never reset to defaults.
+const SLOTS_VERSION = 4
 
 interface Persisted {
-  presets:      PresetsState
-  view:         ViewState
-  slots:        ScheduleSlot[]
+  view:          ViewState
+  slots:         ScheduleSlot[]
   slotsVersion?: number
-}
-
-export const DEFAULT_PRESETS: PresetsState = {
-  full:  { mode: 'mopping_after_sweeping', suction: 'standard', water: '' },
-  sweep: { mode: 'sweeping',               suction: 'standard', water: '' },
 }
 
 export const DEFAULT_VIEW: ViewState = { rotation: 0, zoomByDevice: {} }
 
 export const DEFAULT_SLOTS: ScheduleSlot[] = [
-  { id: 'default-full-15', days: [0,1,2,3,4], time: '15:00', preset: 'full', enabled: true },
+  { id: 'default-15', days: [0, 1, 2, 3, 4], time: '15:00', enabled: true, sweepOnly: false },
 ]
+
+export interface SyncResult {
+  ok:     boolean
+  errors: string[]
+}
+
+export interface HASyncState {
+  status:   'idle' | 'syncing' | 'ok' | 'error'
+  message?: string
+}
 
 function getHAConn(): HAConn | null {
   return useHAStore.getState().connection as HAConn | null
@@ -123,200 +115,160 @@ function saveToHA(data: Persisted): void {
     .catch(() => { /* ignore — saves will retry on next change */ })
 }
 
-/** Convert an array of ScheduleSlots for one preset into the HA schedule day-map format */
-function slotsToHADays(slots: ScheduleSlot[]): Record<string, { from: string; to: string }[]> {
-  const result: Record<string, { from: string; to: string }[]> = {}
-  DAY_KEYS.forEach(d => { result[d] = [] })
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message.replace(/^\[Dashboard\]\s*/, '')
+  if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message)
+  return String(err)
+}
 
-  slots.forEach(slot => {
-    if (!slot.enabled) return
-    const [hh, mm] = slot.time.split(':').map(Number)
-    const nextMin  = mm + 1 >= 60 ? 0 : mm + 1
-    const nextHour = mm + 1 >= 60 ? hh + 1 : hh
-    if (nextHour >= 24) return  // skip midnight-overflow edge case
-    const to = `${String(nextHour).padStart(2,'0')}:${String(nextMin).padStart(2,'0')}`
-    slot.days.forEach(dayIdx => {
-      result[DAY_KEYS[dayIdx]].push({ from: slot.time, to })
-    })
+interface HASchedule {
+  id:    string
+  name:  string
+  icon?: string
+  [day: string]: unknown
+}
+
+/** Replace a schedule helper's blocks, keeping its name/icon (`schedule/update` requires name). */
+async function writeSchedule(conn: HAConn, scheduleId: string, days: Record<string, unknown[]>): Promise<void> {
+  const list = await conn.sendMessagePromise({ type: 'schedule/list' }) as HASchedule[]
+  const current = list.find((s) => s.id === scheduleId)
+  if (!current) throw new Error(`no existe schedule.${scheduleId} en HA`)
+  await conn.sendMessagePromise({
+    type:        'schedule/update',
+    schedule_id: scheduleId,
+    name:        current.name,
+    ...(current.icon ? { icon: current.icon } : {}),
+    ...days,
   })
-
-  // HA requires at least one day with a range; if all empty add a placeholder
-  const hasAny = Object.values(result).some(r => r.length > 0)
-  if (!hasAny) result['monday'] = [{ from: '00:00', to: '00:01' }]
-  return result
 }
 
-// IDs internos de las automatizaciones de limpieza en esta instancia de HA
-const HA_AUTO_FULL_ID  = '1780003771514'
-const HA_AUTO_SWEEP_ID = '1780103622996'
-
-// Conditions shared by both automations
-const AUTO_CONDITIONS = [
-  { condition: 'not', conditions: [{ condition: 'state', entity_id: VACUUM_ENTITY, state: ['cleaning', 'returning'] }] },
-  { condition: 'not', conditions: [{ condition: 'state', entity_id: VACUUM_CLEANING_MODE_ENTITY, state: 'unavailable' }] },
-]
-
-function buildAutomationActions(preset: PresetConfig): unknown[] {
-  const actions: unknown[] = [
-    { action: 'select.select_option', target: { entity_id: VACUUM_CLEANING_MODE_ENTITY }, data: { option: preset.mode } },
-    { action: 'select.select_option', target: { entity_id: VACUUM_SUCTION_LEVEL_ENTITY }, data: { option: preset.suction } },
-  ]
-  if (preset.water) {
-    actions.push({ action: 'select.select_option', target: { entity_id: VACUUM_WATER_VOLUME_ENTITY }, data: { option: preset.water } })
-  }
-  actions.push({ delay: '00:00:02' })
-  actions.push({ action: 'vacuum.start', target: { entity_id: VACUUM_ENTITY } })
-  return actions
+async function clearLegacySchedule(conn: HAConn): Promise<void> {
+  const list = await conn.sendMessagePromise({ type: 'schedule/list' }) as HASchedule[]
+  const legacy = list.find((s) => s.id === HA_LEGACY_SCHEDULE_ID)
+  if (!legacy) return
+  const hasBlocks = DAY_KEYS.some((d) => Array.isArray(legacy[d]) && (legacy[d] as unknown[]).length > 0)
+  if (!hasBlocks) return
+  await writeSchedule(conn, HA_LEGACY_SCHEDULE_ID, Object.fromEntries(DAY_KEYS.map((d) => [d, []])))
 }
 
-async function updateAutomationActions(conn: Connection, presets: PresetsState): Promise<void> {
-  await Promise.allSettled([
-    callRestAPI(conn, 'POST', `/api/config/automation/config/${HA_AUTO_FULL_ID}`, {
-      id: HA_AUTO_FULL_ID,
-      alias: 'Limpieza Robot — Schedule',
-      description: 'Lanza limpieza completa (aspira + frega) según el schedule programado',
-      triggers: [{ platform: 'state', entity_id: HA_SCHEDULE_FULL, to: 'on' }],
-      conditions: AUTO_CONDITIONS,
-      actions: buildAutomationActions(presets.full),
-      mode: 'single',
-    }),
-    callRestAPI(conn, 'POST', `/api/config/automation/config/${HA_AUTO_SWEEP_ID}`, {
-      id: HA_AUTO_SWEEP_ID,
-      alias: 'Limpieza Robot — Solo Aspirado',
-      description: 'Lanza limpieza solo aspirado según el schedule programado',
-      triggers: [{ platform: 'state', entity_id: HA_SCHEDULE_SWEEP, to: 'on' }],
-      conditions: AUTO_CONDITIONS,
-      actions: buildAutomationActions(presets.sweep),
-      mode: 'single',
-    }),
-  ])
-}
-
-// Cache entry IDs to avoid repeated lookups
-let entryIdCache: Record<string, string> = {}
-
-async function getEntryId(haConn: HAConn, entityId: string): Promise<string | null> {
-  if (entryIdCache[entityId]) return entryIdCache[entityId]
+async function getConfig(conn: Connection, path: string): Promise<unknown> {
   try {
-    const entries = await haConn.sendMessagePromise({ type: 'config_entries/list', domain: 'schedule' }) as { entry_id: string; title: string; entity_id?: string }[]
-    for (const e of entries) {
-      // Mirror HA's slugify: lowercase, collapse any run of non-alphanumerics to a
-      // single underscore, trim leading/trailing underscores. This matters for titles
-      // with separators like "Limpieza Robot — Solo Aspirado" → limpieza_robot_solo_aspirado.
-      const slug = e.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-      entryIdCache[`schedule.${slug}`] = e.entry_id
-    }
+    return await callRestAPI(conn, 'GET', path)
   } catch {
-    return null
+    return null // 404 → not created yet
   }
-  return entryIdCache[entityId] ?? null
 }
 
-async function updateScheduleHelper(haConn: HAConn, entityId: string, slots: ScheduleSlot[], preset: 'full' | 'sweep'): Promise<void> {
-  const filtered = slots.filter(s => s.preset === preset)
-  const dayMap   = slotsToHADays(filtered)
-  const entryId  = await getEntryId(haConn, entityId)
-  if (!entryId) return
+/** Write a config through the REST config API only when it differs (each write reloads the domain). */
+async function upsertConfig(conn: Connection, path: string, desired: object): Promise<void> {
+  const current = await getConfig(conn, path)
+  if (current && sameConfig(current, desired)) return
+  await callRestAPI(conn, 'POST', path, desired)
+}
 
-  const flowResult = await haConn.sendMessagePromise({
-    type:    'config_entries/options_flow/init',
-    handler: entryId,
-  }) as { flow_id: string }
+/**
+ * Provision the static script + automation that run scheduled (and manual sweep-only)
+ * cleanings. Idempotent. Refuses to write while room entities aren't loaded, so a cold
+ * start can never overwrite the script with one lacking the sweep-only branch.
+ */
+export async function ensureHAAutomation(conn: Connection): Promise<void> {
+  const entities = useHAStore.getState().entities
+  if (!entities[VACUUM_ENTITY]) throw new Error('el robot todavía no está cargado')
+  const roomModeEntities = findRoomModeEntities(deviceSlug(VACUUM_ENTITY), Object.keys(entities))
+  if (roomModeEntities.length === 0) throw new Error('no se encontraron los selects por habitación del robot')
 
-  await haConn.sendMessagePromise({
-    type:    `config_entries/options_flow/${flowResult.flow_id}`,
-    data:    dayMap,
-  })
+  await upsertConfig(conn, `/api/config/script/config/${HA_SCRIPT_OBJECT_ID}`, buildScriptConfig({
+    vacuumEntity: VACUUM_ENTITY,
+    roomModeEntities,
+    backupSceneId: HA_BACKUP_SCENE_ID,
+  }))
+  await upsertConfig(conn, `/api/config/automation/config/${HA_AUTOMATION_ID}`, buildAutomationConfig({
+    id:             HA_AUTOMATION_ID,
+    scheduleEntity: HA_SCHEDULE_ENTITY,
+    vacuumEntity:   VACUUM_ENTITY,
+    scriptEntity:   HA_SCRIPT_ENTITY,
+  }))
 }
 
 interface VacuumState {
-  presets:  PresetsState
   view:     ViewState
   slots:    ScheduleSlot[]
   haLoaded: boolean
-  setPresets:              (p: PresetsState) => void
+  haSync:   HASyncState
   setRotation:             (r: RotDeg) => void
   setZoom:                 (z: number) => void
   setSlots:                (s: ScheduleSlot[]) => void
-  syncScheduleHelpersToHA: (conn: Connection) => Promise<void>
+  /** Push slots to the schedule helper and (re)provision script + automation. Never turns the automation on. */
+  syncScheduleHelpersToHA: (conn: Connection) => Promise<SyncResult>
   syncFromHA:              (conn: Connection) => Promise<void>
 }
 
 export const useVacuumStore = create<VacuumState>((set, get) => ({
-  presets:  DEFAULT_PRESETS,
   view:     DEFAULT_VIEW,
   slots:    DEFAULT_SLOTS,
   haLoaded: false,
-
-  setPresets: (presets) => {
-    set({ presets })
-    saveToHA({ presets, view: get().view, slots: get().slots })
-  },
+  haSync:   { status: 'idle' },
 
   setRotation: (rotation) => {
     const view = { ...get().view, rotation }
     set({ view })
-    saveToHA({ presets: get().presets, view, slots: get().slots })
+    saveToHA({ view, slots: get().slots })
   },
 
   setZoom: (zoom) => {
     const dev  = getDeviceId()
     const view = { ...get().view, zoomByDevice: { ...get().view.zoomByDevice, [dev]: zoom } }
     set({ view })
-    saveToHA({ presets: get().presets, view, slots: get().slots })
+    saveToHA({ view, slots: get().slots })
   },
 
   setSlots: (slots) => {
     set({ slots })
-    saveToHA({ presets: get().presets, view: get().view, slots })
+    saveToHA({ view: get().view, slots })
   },
 
   syncScheduleHelpersToHA: async (conn) => {
     const haConn = conn as HAConn
-    const { slots, presets } = get()
-    const hasFull  = slots.some(s => s.enabled && s.preset === 'full')
-    const hasSweep = slots.some(s => s.enabled && s.preset === 'sweep')
-    const toggleAuto = (entityId: string, on: boolean) =>
-      callService(conn, 'automation', on ? 'turn_on' : 'turn_off', undefined, { entity_id: entityId })
-    // Fire all updates concurrently, swallow errors (HA might be busy)
-    await Promise.allSettled([
-      updateScheduleHelper(haConn, HA_SCHEDULE_FULL,  slots, 'full'),
-      updateScheduleHelper(haConn, HA_SCHEDULE_SWEEP, slots, 'sweep'),
-      toggleAuto(HA_AUTO_FULL,  hasFull),
-      toggleAuto(HA_AUTO_SWEEP, hasSweep),
-      updateAutomationActions(conn, presets),
-    ])
+    const { slots } = get()
+    set({ haSync: { status: 'syncing' } })
+
+    // Sequential on purpose: the automation must not reload while its schedule is being rewritten
+    const errors: string[] = []
+    const step = async (label: string, fn: () => Promise<unknown>) => {
+      try { await fn() } catch (err) { errors.push(`${label}: ${errorMessage(err)}`) }
+    }
+    await step('Horarios',              () => writeSchedule(haConn, HA_SCHEDULE_ID, slotsToScheduleDays(slots)))
+    await step('Horario legacy',        () => clearLegacySchedule(haConn))
+    await step('Script/automatización', () => ensureHAAutomation(conn))
+    await step('Automatización legacy', async () => {
+      if (useHAStore.getState().entities[HA_LEGACY_AUTOMATION]?.state === 'on') {
+        await callService(conn, 'automation', 'turn_off', undefined, { entity_id: HA_LEGACY_AUTOMATION })
+      }
+    })
+
+    const ok = errors.length === 0
+    set({ haSync: ok ? { status: 'ok' } : { status: 'error', message: errors.join(' · ') } })
+    return { ok, errors }
   },
 
   syncFromHA: async (conn) => {
     const haConn = conn as HAConn
     try {
-      const result  = await haConn.sendMessagePromise({ type: 'frontend/get_user_data', key: HA_STORAGE_KEY })
-      const haData  = (result as { value: Persisted | null }).value
+      const result = await haConn.sendMessagePromise({ type: 'frontend/get_user_data', key: HA_STORAGE_KEY })
+      const haData = (result as { value: Partial<Persisted> | null }).value
 
-      if (haData?.presets) {
-        // If slots were saved with an older version, reset to current defaults
-        const slots = (haData.slotsVersion ?? 0) >= SLOTS_VERSION
-          ? (haData.slots ?? DEFAULT_SLOTS)
+      if (haData) {
+        const slots = Array.isArray(haData.slots)
+          ? haData.slots.map(normalizeSlot).filter((s): s is ScheduleSlot => s !== null)
           : DEFAULT_SLOTS
-        set({
-          presets: haData.presets,
-          view:    normalizeView(haData.view),
-          slots,
-        })
+        set({ view: normalizeView(haData.view), slots })
+        // Rewrite once in the v4 shape (drops the old global presets)
+        if ((haData.slotsVersion ?? 0) < SLOTS_VERSION) saveToHA({ view: get().view, slots })
       } else {
-        // First run: migrate localStorage if present, then clear it
-        const toSave: Persisted = { presets: get().presets, view: get().view, slots: get().slots }
-        try {
-          const rawPresets = localStorage.getItem(LS_KEY_PRESETS)
-          const rawView    = localStorage.getItem(LS_KEY_VIEW)
-          if (rawPresets) toSave.presets = { ...DEFAULT_PRESETS, ...JSON.parse(rawPresets) }
-          if (rawView)    toSave.view    = normalizeView(JSON.parse(rawView))
-          if (rawPresets || rawView) set({ presets: toSave.presets, view: toSave.view })
-        } catch { /* ignore */ }
-
-        await haConn.sendMessagePromise({ type: 'frontend/set_user_data', key: HA_STORAGE_KEY, value: toSave })
-        try { localStorage.removeItem(LS_KEY_PRESETS); localStorage.removeItem(LS_KEY_VIEW) } catch { /* ignore */ }
+        await haConn.sendMessagePromise({
+          type: 'frontend/set_user_data', key: HA_STORAGE_KEY,
+          value: { view: get().view, slots: get().slots, slotsVersion: SLOTS_VERSION },
+        })
       }
     } catch {
       // HA unreachable — defaults stay, no data lost
