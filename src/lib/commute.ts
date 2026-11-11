@@ -10,9 +10,13 @@ export interface TripStop {
 }
 
 export interface TripSchedule {
-  days?:      number[]                    // 0=Lun … 6=Dom; sin definir = todos
-  chipHours?: { from: number; to: number } // franja (24h) en que el viaje toma el chip del header
+  days?:            number[]                     // 0=Lun … 6=Dom; sin definir = todos
+  chipHours?:       { from: number; to: number } // franja (24h) en que puede ocupar el chip del header
+  workdayEntityId?: string                       // binary_sensor de la integración Workday: 'off' en feriados
+  leadMin?:         number                       // con hora fija: el chip aparece estos minutos antes de la salida
 }
+
+export const DEFAULT_LEAD_MIN = 60
 
 export interface Leg {
   mins: number | null
@@ -92,6 +96,11 @@ export function inChipWindow(schedule: TripSchedule, now: Date): boolean {
   return h >= chipHours.from && h < chipHours.to
 }
 
+/** Las rutas sueltas van al chip solo dentro de su franja; sin `chipHours` quedan solo en Detalle. */
+export function routeInChip(route: TripSchedule, now: Date, workday?: string): boolean {
+  return !!route.chipHours && runsToday(route, now, workday) && inChipWindow(route, now)
+}
+
 /**
  * Arma el plan del viaje con el tráfico actual.
  * - Con paradas de hora fija: sale a la hora más temprana que cumple todas.
@@ -138,6 +147,26 @@ export function planTrip(stops: TripStop[], legs: Leg[], now: Date, live: boolea
     : null
 
   return { depart, leaveIn, stops: etas, totalMins: lastOff, totalKm, anchored }
+}
+
+/**
+ * Horario razonable de salida de un viaje con hora fija: desde `leadMin` antes de la
+ * salida calculada (que se mueve con el tráfico) hasta la última `arriveBy`. Con la salida
+ * ya pasada `depart` es ahora, así que sigue visible hasta esa hora.
+ * Sin hora fija o sin el dato de algún tramo no hay ventana: manda solo `chipHours`.
+ */
+export function inDepartureWindow(
+  trip: { stops: TripStop[]; leadMin?: number },
+  plan: TripPlan,
+  now: Date,
+): boolean {
+  const deadlines = trip.stops.flatMap((stop) => {
+    const target = stop.arriveBy ? atTime(now, stop.arriveBy) : null
+    return target ? [target.getTime()] : []
+  })
+  if (!plan.depart || !deadlines.length) return true
+  const from = addMin(plan.depart, -(trip.leadMin ?? DEFAULT_LEAD_MIN))
+  return now >= from && now.getTime() < Math.max(...deadlines)
 }
 
 export type TripTone = 'ok' | 'soon' | 'late' | 'none'

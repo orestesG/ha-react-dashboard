@@ -4,9 +4,11 @@ import {
   formatClock,
   formatDays,
   inChipWindow,
+  inDepartureWindow,
   legFromState,
   mondayIndex,
   planTrip,
+  routeInChip,
   runsToday,
   tripBar,
   tripStatus,
@@ -65,6 +67,41 @@ describe('runsToday / inChipWindow', () => {
     expect(inChipWindow(weekdays, at(9, 59))).toBe(true)
     expect(inChipWindow(weekdays, at(10))).toBe(false)
     expect(inChipWindow({}, at(23))).toBe(true)
+  })
+
+  it('shows single routes only inside their window, on their days', () => {
+    const work = { ...weekdays, chipHours: { from: 6, to: 13 } }
+    expect(routeInChip(work, at(12, 59))).toBe(true)
+    expect(routeInChip(work, at(13))).toBe(false)
+    expect(routeInChip(work, at(5, 59))).toBe(false)
+    expect(routeInChip(work, new Date(2026, 10, 14, 8))).toBe(false) // sábado
+    expect(routeInChip(work, at(8), 'off')).toBe(false)
+    expect(routeInChip({}, at(8))).toBe(false) // sin franja: solo en Detalle
+  })
+})
+
+describe('inDepartureWindow', () => {
+  const shown = (now: Date, trip: { stops: TripStop[]; leadMin?: number } = { stops: SCHOOL_RUN }, legs = LEGS) =>
+    inDepartureWindow(trip, planTrip(trip.stops, legs, now, true), now)
+
+  it('shows the trip from an hour before the departure until the fixed time', () => {
+    // sale 8:50 para estar 9:00 en el colegio
+    expect(shown(at(7, 49))).toBe(false)
+    expect(shown(at(7, 50))).toBe(true)
+    expect(shown(at(8, 57))).toBe(true) // tarde pero todavía en casa
+    expect(shown(at(9))).toBe(false)
+  })
+
+  it('takes a custom lead and follows the traffic', () => {
+    expect(shown(at(8, 19), { stops: SCHOOL_RUN, leadMin: 30 })).toBe(false)
+    expect(shown(at(8, 20), { stops: SCHOOL_RUN, leadMin: 30 })).toBe(true)
+    // con 25 min hasta el colegio sale 8:35: la ventana abre 7:35
+    expect(shown(at(7, 40), undefined, [{ mins: 25, km: 9 }, LEGS[1]])).toBe(true)
+  })
+
+  it('leaves it to chipHours without a fixed time or leg data', () => {
+    expect(shown(at(23), { stops: FREE_RUN })).toBe(true)
+    expect(shown(at(6), undefined, [{ mins: null, km: null }, LEGS[1]])).toBe(true)
   })
 })
 

@@ -8,21 +8,20 @@ import type { Leg, TripSchedule, TripStop, TripTone } from '../../lib/commute'
 import { Car } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-export interface CommuteRoute {
-  entityId:   string
-  label:      string
-  icon:       LucideIcon
-  chipHours?: { from: number; to: number }
+/** Ruta suelta: va al chip del header solo dentro de `chipHours` (y en sus `days`). */
+export interface CommuteRoute extends TripSchedule {
+  entityId: string
+  label:    string
+  icon:     LucideIcon
 }
 
 /** Viaje con paradas: cada parada lleva el sensor Waze del tramo que llega a ella. */
 export interface CommuteTrip extends TripSchedule {
-  id:               string
-  label:            string
-  icon:             LucideIcon
-  from?:            string   // nombre del origen, por defecto 'Casa'
-  workdayEntityId?: string   // binary_sensor de la integración Workday: 'off' en feriados
-  stops:            TripStop[]
+  id:     string
+  label:  string
+  icon:   LucideIcon
+  from?:  string   // nombre del origen, por defecto 'Casa'
+  stops:  TripStop[]
 }
 
 interface CommuteCardProps {

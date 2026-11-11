@@ -3,7 +3,7 @@ import { useEntity } from '../../hooks/useEntity'
 import { useNow } from '../../hooks/useNow'
 import { useTripPlan } from '../../hooks/useTripPlan'
 import { useHAStore } from '../../store/ha-store'
-import { formatClock, inChipWindow, runsToday, tripBar, tripStatus } from '../../lib/commute'
+import { formatClock, inChipWindow, inDepartureWindow, routeInChip, runsToday, tripBar, tripStatus } from '../../lib/commute'
 import type { TripBar } from '../../lib/commute'
 import type { CommuteRoute, CommuteTrip } from './CommuteCard'
 
@@ -47,6 +47,9 @@ function TripTimeline({ bar, late }: { bar: TripBar | null; late: boolean }) {
 
 function TripChip({ trip, now }: { trip: CommuteTrip; now: Date }) {
   const { legs, plan, live } = useTripPlan(trip, now)
+  // Fuera del horario de salida el viaje sigue ocupando su franja, pero sin chip
+  if (!inDepartureWindow(trip, plan, now)) return null
+
   const { text, tone } = tripStatus(plan, live)
   const late = tone === 'late'
   const arrive = plan.stops[plan.stops.length - 1]?.arrive
@@ -72,21 +75,10 @@ function TripChip({ trip, now }: { trip: CommuteTrip; now: Date }) {
   )
 }
 
-function RouteChip({ routes, now }: { routes: CommuteRoute[]; now: Date }) {
-  const hour = now.getHours()
-
-  // Pick active route by time window first, then first route as fallback
-  const activeRoute =
-    routes.find((r) => r.chipHours && hour >= r.chipHours.from && hour < r.chipHours.to)
-    ?? routes[0]
-
-  // Always call hooks unconditionally
-  const { entity } = useEntity(activeRoute?.entityId ?? '')
-
-  if (!activeRoute) return null
-
+function RouteChip({ route }: { route: CommuteRoute }) {
+  const { entity } = useEntity(route.entityId)
   const mins = parseInt(entity?.state ?? '', 10)
-  const Icon = activeRoute.icon
+  const Icon = route.icon
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary text-sm">
@@ -94,25 +86,25 @@ function RouteChip({ routes, now }: { routes: CommuteRoute[]; now: Date }) {
       <span className="font-medium text-text-primary tabular-nums">
         {isNaN(mins) ? '—' : `${mins} min`}
       </span>
-      <span className="text-text-secondary text-xs truncate">{activeRoute.label}</span>
+      <span className="text-text-secondary text-xs truncate">{route.label}</span>
     </div>
   )
 }
 
+/** Solo con la persona en casa y en horario de salida; si no, no ocupa lugar en el header. */
 export function CommuteChip({ routes, trips = [], personEntityId }: CommuteChipProps) {
   const { entity: person } = useEntity(personEntityId)
   const now = useNow()
   const workdays = useHAStore(useShallow((s) =>
-    trips.map((t) => t.workdayEntityId ? s.entities[t.workdayEntityId]?.state : undefined),
+    [...trips, ...routes].map((t) => t.workdayEntityId ? s.entities[t.workdayEntityId]?.state : undefined),
   ))
 
-  // A trip running today inside its window takes the chip over the single routes
-  const activeTrip = trips.find((t, i) => runsToday(t, now, workdays[i]) && inChipWindow(t, now))
+  // Un viaje que corre hoy ocupa el chip durante su franja; las rutas, solo dentro de la suya
+  const trip  = trips.find((t, i) => runsToday(t, now, workdays[i]) && inChipWindow(t, now))
+  const route = routes.find((r, i) => routeInChip(r, now, workdays[trips.length + i]))
 
   // Only hide when definitely away — undefined means we don't know yet, so keep showing
   if (person?.state === 'not_home') return null
-
-  return activeTrip
-    ? <TripChip trip={activeTrip} now={now} />
-    : <RouteChip routes={routes} now={now} />
+  if (trip) return <TripChip trip={trip} now={now} />
+  return route ? <RouteChip route={route} /> : null
 }

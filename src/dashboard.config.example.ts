@@ -24,13 +24,17 @@ export const scenes = [
 
 // ── Commute routes ────────────────────────────────────────────────────────────
 // entityId: Waze Travel Time sensor
-// chipHours: { from, to } — hour range (24h) when this route shows in the header chip
+// chipHours: { from, to } — hour range (24h) when this route shows in the header chip;
+//            without it the route only shows in the Detalle card
+// days / workdayEntityId: optional, same as trips below (no "Work" chip on weekends or holidays)
 export const commuteRoutes: CommuteRoute[] = [
   {
-    entityId:  'sensor.waze_home_to_work',
-    label:     'Work',
-    icon:      Briefcase,
-    chipHours: { from: 6, to: 13 },
+    entityId:        'sensor.waze_home_to_work',
+    label:           'Work',
+    icon:            Briefcase,
+    chipHours:       { from: 6, to: 13 },
+    days:            [0, 1, 2, 3, 4],
+    workdayEntityId: 'binary_sensor.workday_sensor',
   },
   {
     entityId: 'sensor.waze_home_to_supermarket',
@@ -45,7 +49,9 @@ export const commuteRoutes: CommuteRoute[] = [
 // arriveBy: 'HH:MM' — the departure is planned backwards from it with live traffic
 // dwellMin: minutes stopped there before going on
 // days: 0=Mon … 6=Sun · workdayEntityId: Workday integration sensor ('off' on holidays)
-// chipHours: while active, the trip replaces the route in the header chip
+// chipHours: while active, the trip owns the header chip (routes don't show)
+// leadMin: with a fixed time, the chip only appears from leadMin minutes (default 60) before
+//          the computed departure until the arriveBy time
 export const commuteTrips: CommuteTrip[] = [
   {
     id:              'school-work',
