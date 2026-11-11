@@ -214,7 +214,7 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 - Waze Travel Time no soporta waypoints: cada tramo es su propio sensor y cada parada lleva el sensor del tramo que **llega** a ella. El total es la suma de tramos + `dwellMin` de las paradas intermedias.
 - La salida se calcula hacia atrás desde la parada con `arriveBy` (redondeada hacia abajo al minuto) con el tráfico **actual**: Waze no predice el tráfico de la hora de salida.
 - Días con `days` (0=Lun, como el robot) + `workdayEntityId` (integración Workday, `off` en feriados). Las vacaciones escolares no son feriados: se cargan en las opciones de Workday si hacen falta.
-- Dentro de `chipHours` (y si corre hoy) el viaje reemplaza a la ruta en el chip del header: cuenta regresiva, "Hora de salir" o "N min tarde".
+- Dentro de `chipHours` (y si corre hoy) el viaje reemplaza a la ruta en el chip del header: cuenta regresiva ("Salir en N min", "Hora de salir", "N min tarde") + "llegás H:MM" + una barra de ahora a la llegada (`tripBar`): hueco = lo que falta para salir, azul = manejo, gris = parada, marca = `arriveBy`; todo en rojo si se llega tarde. "Pronto" es un punto azul que titila: el naranja/amarillo del design system es solo identidad, no estado.
 - `dashboard.config.ts` no está en git: el runner lo toma del secret `DASHBOARD_CONFIG_B64`. Un export nuevo en la config (como `commuteTrips`) requiere actualizar el secret **antes** de mergear, o el build del deploy falla.
 
 ---

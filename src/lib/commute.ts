@@ -162,6 +162,45 @@ export function tripStatus(plan: TripPlan, live: boolean): { text: string; tone:
   return { text: `Salir ${formatClock(plan.depart)}`, tone: 'ok' }
 }
 
+export interface BarSegment {
+  kind: 'wait' | 'leg' | 'dwell'
+  pct:  number
+}
+
+export interface TripBar {
+  segments: BarSegment[]   // suman 100
+  marks:    number[]       // horas fijas (arriveBy) en % de la barra
+}
+
+/**
+ * Barra del chip: va de ahora a la llegada final. 'wait' es lo que falta para salir
+ * (se achica solo con el tiempo); 'leg' y 'dwell' son manejo y paradas.
+ */
+export function tripBar(stops: TripStop[], legs: Leg[], plan: TripPlan, now: Date): TripBar | null {
+  const end = plan.stops[plan.stops.length - 1]?.arrive
+  if (!plan.depart || !end) return null
+  const span = end.getTime() - now.getTime()
+  if (span <= 0) return null
+  const pct = (ms: number) => (ms / span) * 100
+
+  const segments: BarSegment[] = []
+  const wait = plan.depart.getTime() - now.getTime()
+  if (wait > 0) segments.push({ kind: 'wait', pct: pct(wait) })
+  stops.forEach((stop, i) => {
+    segments.push({ kind: 'leg', pct: pct((legs[i]?.mins ?? 0) * 60_000) })
+    if (i < stops.length - 1 && stop.dwellMin) segments.push({ kind: 'dwell', pct: pct(stop.dwellMin * 60_000) })
+  })
+
+  const marks = stops.flatMap((stop) => {
+    const target = stop.arriveBy ? atTime(now, stop.arriveBy) : null
+    if (!target) return []
+    const p = pct(target.getTime() - now.getTime())
+    return p >= 0 && p <= 100 ? [p] : []
+  })
+
+  return { segments, marks }
+}
+
 /** Hora local H:MM, redondeada al minuto más cercano. */
 export function formatClock(d: Date): string {
   const r = new Date(Math.round(d.getTime() / 60_000) * 60_000)

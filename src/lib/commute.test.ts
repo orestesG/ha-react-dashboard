@@ -8,6 +8,7 @@ import {
   mondayIndex,
   planTrip,
   runsToday,
+  tripBar,
   tripStatus,
   type Leg,
   type TripStop,
@@ -143,6 +144,40 @@ describe('tripStatus', () => {
   it('shows the total for trips without a fixed time and a dash without data', () => {
     expect(tripStatus(planTrip(FREE_RUN, LEGS, at(12), true), true)).toEqual({ text: '30 min', tone: 'ok' })
     expect(status(at(8), true, [{ mins: null, km: null }, LEGS[1]])).toEqual({ text: '—', tone: 'none' })
+  })
+})
+
+describe('tripBar', () => {
+  const bar = (stops: TripStop[], legs: Leg[], now: Date) => tripBar(stops, legs, planTrip(stops, legs, now, true), now)
+  const rounded = (b: ReturnType<typeof tripBar>) => b && {
+    segments: b.segments.map((s) => `${s.kind}:${s.pct.toFixed(1)}`),
+    marks:    b.marks.map((m) => m.toFixed(1)),
+  }
+
+  it('spans from now to the final arrival, waiting first', () => {
+    // 8:20 → sale 8:50, llega 9:20: 30 espera + 10 + 5 parada + 15 sobre 60 min
+    expect(rounded(bar(SCHOOL_RUN, LEGS, at(8, 20)))).toEqual({
+      segments: ['wait:50.0', 'leg:16.7', 'dwell:8.3', 'leg:25.0'],
+      marks:    ['66.7'],
+    })
+  })
+
+  it('drops the wait once it is time to go and puts the deadline inside the first leg when late', () => {
+    expect(rounded(bar(SCHOOL_RUN, LEGS, at(8, 54)))).toEqual({
+      segments: ['leg:33.3', 'dwell:16.7', 'leg:50.0'],
+      marks:    ['20.0'],
+    })
+  })
+
+  it('has no wait or marks without fixed times', () => {
+    expect(rounded(bar(FREE_RUN, LEGS, at(12)))).toEqual({
+      segments: ['leg:33.3', 'dwell:16.7', 'leg:50.0'],
+      marks:    [],
+    })
+  })
+
+  it('returns null while a leg has no data', () => {
+    expect(bar(SCHOOL_RUN, [LEGS[0], { mins: null, km: null }], at(8))).toBeNull()
   })
 })
 
