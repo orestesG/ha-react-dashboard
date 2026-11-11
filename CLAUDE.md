@@ -54,6 +54,7 @@ src/
 ├── index.css                   # Tailwind + CSS variables light/dark + resize handles
 │
 ├── lib/
+│   ├── commute.ts              # Lógica pura de viajes con paradas: tramos Waze, salida según arriveBy, ETAs, estado del chip (tests en commute.test.ts)
 │   ├── ha-client.ts            # Conexión WS, subscribeEntities, callService, fetchAllStates, callRestAPI
 │   ├── ha-types.ts             # Interfaces tipadas: LightEntity, CoverEntity, ClimateEntity…
 │   └── vacuum.ts               # Lógica pura del robot Dreame: opciones, slots→schedule, config de script/automatización (tests en vacuum.test.ts)
@@ -66,6 +67,8 @@ src/
 ├── hooks/
 │   ├── useHA.ts                # Conecta/desconecta al montar; retorna estado del store
 │   ├── useEntity.ts            # Lee entidad del store; expone state, attributes, isOn, toggle…
+│   ├── useNow.ts               # Hora actual refrescada cada 30 s (cuentas regresivas)
+│   ├── useTripPlan.ts          # Sensores de un viaje con paradas → plan (salida, llegadas, si corre hoy)
 │   └── useService.ts           # Wrappers tipados de callService por dominio
 │
 ├── areas/                      # Un componente por habitación; usan <AreaCard> + controles
@@ -206,6 +209,14 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 
 ### Forecast del tiempo (API HA)
 - `weather.get_forecasts` requiere `return_response: true` en el mensaje WS; se llama con `conn.sendMessagePromise()` ya que la librería no tiene un wrapper tipado para esto
+
+### Commute con paradas (`commuteTrips`)
+- Waze Travel Time no soporta waypoints: cada tramo es su propio sensor y cada parada lleva el sensor del tramo que **llega** a ella. El total es la suma de tramos + `dwellMin` de las paradas intermedias.
+- La salida se calcula hacia atrás desde la parada con `arriveBy` (redondeada hacia abajo al minuto) con el tráfico **actual**: Waze no predice el tráfico de la hora de salida.
+- Días con `days` (0=Lun, como el robot) + `workdayEntityId` (integración Workday, `off` en feriados). Las vacaciones escolares no son feriados: se cargan en las opciones de Workday si hacen falta.
+- El chip del header solo aparece con la persona en casa y en horario de salida (si no, no ocupa lugar). Una ruta suelta va al chip dentro de su `chipHours` y sus `days`/`workdayEntityId` (`routeInChip`); sin `chipHours` queda solo en Detalle. Un viaje que corre hoy ocupa el chip toda su `chipHours` (las rutas no se muestran), pero con hora fija solo se ve desde `leadMin` (60) antes de la salida calculada hasta la `arriveBy` (`inDepartureWindow`): como la salida sigue al tráfico, la ventana también.
+- El chip del viaje muestra cuenta regresiva ("Salir en N min", "Hora de salir", "N min tarde") + "llegás H:MM" + una barra de ahora a la llegada (`tripBar`): hueco = lo que falta para salir, azul = manejo, gris = parada, marca = `arriveBy`; todo en rojo si se llega tarde. "Pronto" es un punto azul que titila: el naranja/amarillo del design system es solo identidad, no estado.
+- `dashboard.config.ts` no está en git: el runner lo toma del secret `DASHBOARD_CONFIG_B64`. Un export nuevo en la config (como `commuteTrips`) requiere actualizar el secret **antes** de mergear, o el build del deploy falla.
 
 ---
 
