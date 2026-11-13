@@ -13,6 +13,7 @@ Dashboard personalizado para Home Assistant, construido en React + TypeScript. F
 | Estado | Zustand 5 |
 | Grid | react-grid-layout 2 (`ResponsiveGridLayout`) |
 | Charts | Recharts 3 |
+| 3D | three.js (plano del apto, sin react-three-fiber) |
 | Iconos | lucide-react |
 | HA WebSocket | home-assistant-js-websocket 9 |
 | Build | Vite 8 + vite-plugin-css-injected-by-js |
@@ -52,11 +53,13 @@ src/
 ├── panel-element.ts            # Custom element MiDashboardPanel — shadow DOM injection
 ├── App.tsx                     # Shell — header, ResponsiveGridLayout, conexión
 ├── index.css                   # Tailwind + CSS variables light/dark + resize handles
+├── floorplan.config.ts         # Plano 3D: habitaciones, paredes/aberturas y posición de cada dispositivo (metros). Gitignored; ver floorplan.config.example.ts
 │
 ├── lib/
 │   ├── ha-client.ts            # Conexión WS, subscribeEntities, callService, fetchAllStates, callRestAPI
 │   ├── ha-types.ts             # Interfaces tipadas: LightEntity, CoverEntity, ClimateEntity…
-│   └── vacuum.ts               # Lógica pura del robot Dreame: opciones, slots→schedule, config de script/automatización (tests en vacuum.test.ts)
+│   ├── vacuum.ts               # Lógica pura del robot Dreame: opciones, slots→schedule, config de script/automatización (tests en vacuum.test.ts)
+│   └── floorplan.ts            # Lógica pura del plano 3D: cortar paredes en tramos/aberturas, robot→plano, estado activo (tests en floorplan.test.ts)
 │
 ├── store/
 │   ├── ha-store.ts             # Zustand: connection, entities, isConnected, error, entityCount
@@ -99,7 +102,9 @@ src/
 │       ├── WeatherWidget.tsx   # Clima: actual + hourly SVG curve + weekly range bars
 │       ├── EnergyChart.tsx     # UTE: consumo punta/llano/valle + gasto/deuda + historial Recharts
 │       ├── BatteryWidget.tsx   # Nivel de batería de sensores Zigbee/BLE agrupados por área
-│       └── SceneButtons.tsx    # Botones de escenas HA (Buen día, Modo sueño…)
+│       ├── SceneButtons.tsx    # Botones de escenas HA (Buen día, Modo sueño…)
+│       ├── FloorplanCard.tsx   # Plano 3D interactivo: marcadores HTML por dispositivo + panel de control
+│       └── floorplan/FloorplanScene.ts # Escena three.js imperativa (pisos, paredes, persianas, robot); render bajo demanda
 ```
 
 ---
@@ -203,6 +208,22 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 - Los helpers `schedule.*` son de colección (no config entries): se escriben con WS `schedule/update` (requiere `name`). Cada bloque lleva `data` (`sweep_only`, `suction`, `passes`) que HA expone como atributos mientras está activo.
 - El dashboard provisiona `script.mi_dashboard_limpieza_robot` y reescribe la automatización `automation.limpieza_robot_schedule` (REST `/api/config/...`, solo si cambiaron). "Solo aspirado" pasa por el script para que HA restaure los modos por habitación al volver a la base.
 - El robot también tiene horarios nativos de la app (atributo `schedule` del vacuum) que corren independientes de HA.
+
+### Plano 3D (pestaña `plano`, card `floorplan`)
+- Por defecto la card muestra una **vista fija pre-renderizada** (`floorplan/StillView.tsx`, sin WebGL): una imagen base de día o de noche (según `sun.sun`; si no existe, según el tema) más una imagen por lámpara con solo lo que esa lámpara aporta, que se tiñe con su color y se suma en un canvas 2D. Los marcadores se ubican con `projectStill` (la misma cámara, `STILL`). El 3D interactivo (three.js) solo se crea al pulsar el botón **3D** (o con `?plano3d` en la URL) y se destruye al apagarlo. Persianas, cortinas y robot solo se mueven en el 3D.
+- Las imágenes de `floorplan/still/` las renderiza Blender (Cycles) a partir del mismo modelo: en dev, con el 3D activo, `await __floorplanScene.exportGLB()` devuelve el GLB (cámara fija y lámparas con nombre incluidas) y `blender --background --factory-startup --python scripts/render_floorplan.py -- <glb> src/components/widgets/floorplan/still` genera `day.webp`, `night.webp` y `light-<device>.jpg`. **Hay que regenerarlas cada vez que cambie la geometría, los muebles, las texturas o la posición de una luz.**
+- Geometría en `src/floorplan.config.ts`, en metros: `x` a lo ancho, `y` a lo largo (0 = fondo del cuarto principal). El perímetro sale del plano de mensura; los tabiques, del mapa del robot. El archivo es personal (IDs de entidades y medidas reales) y está en `.gitignore`, igual que `dashboard.config.ts`: se parte de `src/floorplan.config.example.ts`. Los tipos (`Room`, `Device`, `Furniture`, `Cove`) viven en `lib/floorplan.ts`.
+- El mapa del robot muestra el living ~0,8 m más ancho y con una "pata" hacia el pallier: es lidar que ve a través de la puerta/espejo, no piso real. El plano manda.
+- `vacuumTransform` convierte mm del robot → metros del plano (el `x` del robot corre a lo largo del apto). Si se rehace el mapa del robot hay que recalibrar el origen.
+- La escena no tiene loop de animación: renderiza al cambiar cámara/estado y avisa a la card, que reubica los marcadores HTML por `transform` (sin estado React por frame).
+- Los `switch.*` se conmutan directo desde el marcador; el resto abre un panel centrado sobre el plano con el control existente (`LightTile`, `CoverTile`, `ClimateCard`, `MediaPlayerCard`).
+- Iluminación: de día modela el sol (sombras); en dark mode casi todo viene de la lámpara de cada habitación, que toma el `rgb_color` de la luz encendida. Solo las lámparas encendidas generan shadow map. De noche el fondo de la card es un degradado azul oscuro y cada lámpara/bombilla encendida lleva un halo (sprite aditivo, en vez de bloom por post-proceso).
+- Materiales: mapas PBR (color/normal/rugosidad) en JPEG en `floorplan/tex/`, generados con Blender: `blender --background --factory-startup --python scripts/bake_textures.py -- src/components/widgets/floorplan/tex <cache>`. Pisos, revoque, tela y veta son escaneos fotográficos CC0 de Poly Haven (el script los baja a 1k la primera vez y los reduce; los de detalle se pasan a gris casi blanco para modular el color del material); la piedra de las mesadas es procedural (`bake_textures.osl`, Cycles + OSL). El tamaño real de cada escaneo está en `PBR_SPAN` y en el `perMetre` de cada material. Se importan desde `textures.ts` y Vite los incrusta. Mientras cargan se ven las texturas dibujadas en canvas (fallback). Pisos: `loadFloorMaps`; detalle de paredes/muebles/cortina: `createSurfaceTexture` + `createSurfaceNormal` (el canvas se repinta al cargar). Lo que sigue describe el dibujo de respaldo. Pisos (`floor` de cada habitación): parquet en espiga dibujado alineado a los ejes para que repita sin costura y rotado 45°, baldosas con borde suavizado. Muebles, paredes y cortina llevan texturas de detalle casi blancas (tela, veta, revoque, piedra) que modulan el color del material y hacen de `bumpMap`; para que no se estiren, las cajas pasan sus UV a metros (`boxUVsInMetres`). Los muebles usan `RoundedBoxGeometry` (tapizados bien redondeados, carpintería apenas matada) y la escena tiene un `RoomEnvironment` tenue para reflejos suaves. La sombra bajo el edificio es una textura dibujada: un `ShadowMaterial` también recibía la sombra de cada lámpara y manchaba el fondo.
+- Terminaciones: paredes gris claro; marcos de ventana, contramarcos de puerta (`addCasing`) y zócalos (`addSkirting`) blancos. El zócalo solo se pone en las caras que dan a una habitación, no en el exterior del edificio.
+- Ventanas: corredizas de dos hojas (`addWindow`); la persiana (`cover` de la abertura) va por fuera y la cortina de tela (`curtain`) por dentro, ambas siguen `current_position`. "Afuera" se deduce como el lado opuesto al centro del apto. El antepecho por defecto es `SILL_HEIGHT`; una abertura puede fijar el suyo con `sill` (el ventanal del balcón cerrado arranca a media altura).
+- Cenefas: lista `coves` en `floorplan.config.ts` (rectángulo exterior, ancho, separación de bombillas). Se dibujan como un anillo semitransparente a la altura del corte de las paredes, con 2 bombillas por lado; reemplazan al objeto del dispositivo indicado en `deviceId`. Las bombillas no generan sombras (serían 8 shadow maps). Cada bombilla que tiene una pared maciza al lado dibuja sobre ella un bañado de luz (plano aditivo con textura de abanico, `buildWallWash`); en puertas, ventanas y el lado abierto no hay bañado.
+- Muebles decorativos: lista `furniture` en `floorplan.config.ts` (`kind`, `pos` = centro, `facing` = hacia dónde mira el frente, `size` opcional); las formas están en `floorplan/furniture.ts`.
+- Pestañas nuevas en `DEFAULT_TABS` se agregan al layout guardado con `withNewDefaultTabs` (no hace falta subir `TABS_VERSION`).
 
 ### Forecast del tiempo (API HA)
 - `weather.get_forecasts` requiere `return_response: true` en el mensaje WS; se llama con `conn.sendMessagePromise()` ya que la librería no tiene un wrapper tipado para esto
