@@ -26,6 +26,7 @@ import { EnergyChip } from "./components/widgets/EnergyChip";
 import { CommuteCard } from "./components/widgets/CommuteCard";
 import { CommuteChip } from "./components/widgets/CommuteChip";
 import { ExchangeRateCard } from "./components/widgets/ExchangeRateCard";
+import { FloorplanCard } from "./components/widgets/FloorplanCard";
 import { TabBar } from "./components/ui/TabBar";
 import { GridSkeleton } from "./components/ui/GridSkeleton";
 import { LayoutGrid, RotateCcw, Check, GripHorizontal } from "lucide-react";
@@ -41,8 +42,8 @@ interface AppProps {
 const BREAKPOINTS = { lg: 1280, md: 768, sm: 0 };
 const COLS = { lg: 4, md: 2, sm: 1 };
 
-// Cards that stretch to fill their cell (the robot's map grows with it); the rest shrink to their content
-const FILL_ITEMS = new Set(["vacuum"]);
+// Cards that stretch to fill their cell (the robot's map and the 3D plan grow with it); the rest shrink to their content
+const FILL_ITEMS = new Set(["vacuum", "floorplan"]);
 
 type Fits = Record<string, number>;
 
@@ -297,6 +298,7 @@ function App({ panelMode = false }: AppProps) {
             {items.includes('battery')        && <div key="battery"><GridItem id="battery" editMode={editMode} {...fitProps("battery")}><BatteryWidget sensors={batterySensors} /></GridItem></div>}
             {items.includes('commute')        && <div key="commute"><GridItem id="commute" editMode={editMode} {...fitProps("commute")}><CommuteCard routes={commuteRoutes} personEntityId={PERSON_ENTITY} /></GridItem></div>}
             {items.includes('exchange-rates') && <div key="exchange-rates"><GridItem id="exchange-rates" editMode={editMode} {...fitProps("exchange-rates")}><ExchangeRateCard /></GridItem></div>}
+            {items.includes('floorplan')      && <div key="floorplan"><GridItem id="floorplan" editMode={editMode} {...fitProps("floorplan")}><FloorplanCard /></GridItem></div>}
           </ResponsiveGridLayout>
         )}
       </div>

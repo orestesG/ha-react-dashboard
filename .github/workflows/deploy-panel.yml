@@ -36,6 +36,14 @@ jobs:
             Copy-Item "src\dashboard.config.example.ts" "src\dashboard.config.ts" -Force
             Write-Host "WARN: usando dashboard.config.example.ts"
           }
+          $src = "D:\HAReactDash-style-fixes\src\floorplan.config.ts"
+          if (Test-Path $src) {
+            Copy-Item $src "src\floorplan.config.ts" -Force
+            Write-Host "OK: floorplan.config.ts copiado"
+          } else {
+            Copy-Item "src\floorplan.config.example.ts" "src\floorplan.config.ts" -Force
+            Write-Host "WARN: usando floorplan.config.example.ts"
+          }
 
       # ── Dashboard config: Linux/Docker runner (desde secret base64) ────────
       - name: Copy dashboard config (Linux)
@@ -43,7 +51,15 @@ jobs:
         shell: bash
         env:
           DASHBOARD_CONFIG_B64: ${{ secrets.DASHBOARD_CONFIG_B64 }}
+          FLOORPLAN_CONFIG_B64: ${{ secrets.FLOORPLAN_CONFIG_B64 }}
         run: |
+          if [ -n "$FLOORPLAN_CONFIG_B64" ]; then
+            echo "$FLOORPLAN_CONFIG_B64" | base64 -d > src/floorplan.config.ts
+            echo "OK: floorplan.config.ts restaurado desde secret"
+          else
+            cp src/floorplan.config.example.ts src/floorplan.config.ts
+            echo "WARN: usando floorplan.config.example.ts (secret FLOORPLAN_CONFIG_B64 no configurado)"
+          fi
           if [ -n "$DASHBOARD_CONFIG_B64" ]; then
             echo "$DASHBOARD_CONFIG_B64" | base64 -d > src/dashboard.config.ts
             echo "OK: dashboard.config.ts restaurado desde secret"

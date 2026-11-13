@@ -95,6 +95,12 @@ const DEFAULT_DETALLE_SM: LayoutItem[] = DEFAULT_DETALLE_LG.map((item, idx) => (
   ...item, x: 0, y: idx * 4, w: 1,
 }))
 
+// ── Plano 3D default layout (a single card that fills the tab) ────────────────
+
+const DEFAULT_PLANO_LG: LayoutItem[] = [{ i: 'floorplan', x: 0, y: 0, w: 4, h: 7, minH: 3 }]
+const DEFAULT_PLANO_MD: LayoutItem[] = [{ i: 'floorplan', x: 0, y: 0, w: 2, h: 7, minH: 3 }]
+const DEFAULT_PLANO_SM: LayoutItem[] = [{ i: 'floorplan', x: 0, y: 0, w: 1, h: 5, minH: 3 }]
+
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
 export interface TabDef {
@@ -130,7 +136,19 @@ const DEFAULT_TABS: TabDef[] = tabsRowsToPx([
     itemIds: DETALLE_ITEM_IDS,
     layouts: { lg: DEFAULT_DETALLE_LG, md: DEFAULT_DETALLE_MD, sm: DEFAULT_DETALLE_SM },
   },
+  {
+    id:      'plano',
+    label:   'Plano 3D',
+    itemIds: ['floorplan'],
+    layouts: { lg: DEFAULT_PLANO_LG, md: DEFAULT_PLANO_MD, sm: DEFAULT_PLANO_SM },
+  },
 ])
+
+/** Tabs added to the defaults after a layout was stored are appended, so nobody's layout needs a reset */
+export function withNewDefaultTabs(stored: TabDef[]): TabDef[] {
+  const known = new Set(stored.map((t) => t.id))
+  return [...stored, ...DEFAULT_TABS.filter((t) => !known.has(t.id))]
+}
 
 // ── Persisted shape ───────────────────────────────────────────────────────────
 
@@ -228,13 +246,13 @@ export const useLayoutStore = create<LayoutState>((set) => ({
       if (isCurrent(haData)) {
         // HA has up-to-date data — apply it (cross-device sync).
         // Always start on the first tab so heavy cards on other tabs load on demand.
-        set({ tabs: haData.tabs, activeTabId: 'main' })
+        set({ tabs: withNewDefaultTabs(haData.tabs), activeTabId: 'main' })
       } else {
         // No px layout yet: convert the row-based one (HA, or localStorage on a first run)
         let tabs = DEFAULT_TABS
         const legacy = await getUserData(haConn, LEGACY_HA_STORAGE_KEY)
         if (isCurrent(legacy)) {
-          tabs = tabsRowsToPx(legacy.tabs)
+          tabs = withNewDefaultTabs(tabsRowsToPx(legacy.tabs))
         } else if (!legacy && !haData) {
           try {
             const lsRaw = localStorage.getItem(LS_KEY_TABS)
