@@ -8,7 +8,10 @@ import { Thermometer, Plus, Minus } from "lucide-react";
 interface ClimateCardProps {
   entityId: string;
   name: string;
-  consoleEntityId?: string;
+  /** script.* de HA que invierte la luz del display (la lógica vive en HA, así también la usa el asistente de voz) */
+  displayScriptId?: string;
+  /** input_boolean.* que recuerda si el display está apagado */
+  displayOffEntityId?: string;
 }
 
 const MODES: { value: string; label: string }[] = [
@@ -20,9 +23,9 @@ const MODES: { value: string; label: string }[] = [
   { value: "fan_only", label: "Fan" },
 ];
 
-export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProps) {
+export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
-  const consoleResult = useEntity(consoleEntityId ?? "");
+  const displayOffResult = useEntity(displayOffEntityId ?? "");
   const connection = useHAStore((s) => s.connection);
 
   const state = entity?.state;
@@ -33,7 +36,7 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
   const minTemp  = (entity?.attributes?.min_temp as number | undefined) ?? 16;
   const maxTemp  = (entity?.attributes?.max_temp as number | undefined) ?? 30;
 
-  const consoleOn = consoleResult.entity?.state === "on";
+  const displayOn = displayOffResult.entity?.state !== "on";
 
   const isOff = state === "off";
 
@@ -47,9 +50,9 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
     await callService(connection, "climate", "set_temperature", { temperature: temp }, { entity_id: entityId });
   };
 
-  const toggleConsole = async () => {
-    if (!connection || !consoleEntityId) return;
-    await callService(connection, "input_boolean", "toggle", undefined, { entity_id: consoleEntityId });
+  const toggleDisplay = async () => {
+    if (!connection || !displayScriptId) return;
+    await callService(connection, "script", "turn_on", undefined, { entity_id: displayScriptId });
   };
 
   if (loading) {
@@ -127,12 +130,12 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
             </button>
           );
         })}
-        {consoleEntityId && (
+        {displayScriptId && (
           <button
-            onClick={toggleConsole}
-            title={consoleOn ? "Luz consola encendida" : "Luz consola apagada"}
+            onClick={toggleDisplay}
+            title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
             className={`ml-auto min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-              consoleOn
+              displayOn
                 ? "bg-accent-yellow/20 text-accent-yellow"
                 : "bg-bg-secondary text-text-secondary hover:text-text-primary"
             }`}
