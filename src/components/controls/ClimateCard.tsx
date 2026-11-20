@@ -3,7 +3,7 @@ import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
-import { Thermometer, Plus, Minus } from "lucide-react";
+import { Thermometer, Plus, Minus, Fan } from "lucide-react";
 
 interface ClimateCardProps {
   entityId: string;
@@ -23,6 +23,13 @@ const MODES: { value: string; label: string }[] = [
   { value: "fan_only", label: "Fan" },
 ];
 
+const FAN_LABELS: Record<string, string> = {
+  auto: "Auto",
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+};
+
 export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
   const displayOffResult = useEntity(displayOffEntityId ?? "");
@@ -40,9 +47,19 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
 
   const isOff = state === "off";
 
+  const fanModes = entity?.attributes?.fan_modes as string[] | null | undefined;
+  const fanMode = entity?.attributes?.fan_mode as string | null | undefined;
+  // En modo seco el aire fuerza ventilador automático: elegir velocidad no tiene efecto
+  const showFan = !isOff && state !== "dry" && (fanModes?.length ?? 0) > 1;
+
   const setMode = async (mode: string) => {
     if (!connection) return;
     await callService(connection, "climate", "set_hvac_mode", { hvac_mode: mode }, { entity_id: entityId });
+  };
+
+  const setFan = async (mode: string) => {
+    if (!connection) return;
+    await callService(connection, "climate", "set_fan_mode", { fan_mode: mode }, { entity_id: entityId });
   };
 
   const setTemp = async (temp: number) => {
@@ -144,6 +161,25 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
           </button>
         )}
       </div>
+
+      {showFan && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Fan size={16} className="text-text-secondary mx-1" aria-label="Ventilador" />
+          {fanModes!.map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setFan(mode)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all min-h-[44px] flex items-center active:scale-95 ${
+                fanMode === mode
+                  ? "bg-accent-orange/20 text-accent-orange"
+                  : "bg-bg-secondary text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {FAN_LABELS[mode] ?? mode}
+            </button>
+          ))}
+        </div>
+      )}
 
     </div>
   );
