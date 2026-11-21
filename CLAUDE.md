@@ -263,7 +263,7 @@ npm run test:watch    # Vitest (watch)
 ## Despliegue del panel en HA
 
 1. `npm run build:panel` → genera `dist/main.js` y `dist/plano.js`
-2. Copiar ambos a `<HA config>/www/mi-dashboard/` (el workflow `deploy-panel.yml` lo hace al mergear a `main` y versiona cada `module_url` con `?v=<sha>`)
+2. Copiar ambos a `<HA config>/www/mi-dashboard/` (el workflow `deploy-panel.yml` lo hace al mergear a `main`, versiona cada `module_url` con `?v=<sha>` y reinicia HA con `scripts/ha-restart.mjs`)
 3. En `configuration.yaml`:
    ```yaml
    panel_custom:
@@ -278,4 +278,4 @@ npm run test:watch    # Vitest (watch)
        sidebar_icon: mdi:floor-plan
        module_url: /local/mi-dashboard/plano.js
    ```
-4. Reiniciar HA o hacer "Check & Restart"
+4. Reiniciar HA o hacer "Check & Restart". Un "recargar configuración" no alcanza: `panel_custom` solo lee `module_url` al arrancar, así que sin reinicio HA sigue anunciando el `?v=` viejo y las apps usan su copia en caché (`/local` se sirve con `max-age` de 31 días). Por eso el workflow reinicia: valida la config (`check_config`), reinicia y espera hasta 5 min a que los dos paneles aparezcan con el `?v=` del commit, o falla. `HA_TOKEN` tiene que ser de un admin. Para probarlo sin reiniciar: `DRY_RUN=1 SHA=<sha> HA_URL=… HA_TOKEN=… node scripts/ha-restart.mjs`
