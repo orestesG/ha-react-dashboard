@@ -30,6 +30,13 @@ const FAN_LABELS: Record<string, string> = {
   high: "Alta",
 };
 
+// Cuanto más rápida la velocidad, más rápido gira el aspa (auto queda quieta)
+const FAN_SPIN: Record<string, string> = {
+  low: "animate-spin [animation-duration:3s]",
+  medium: "animate-spin [animation-duration:1.5s]",
+  high: "animate-spin [animation-duration:0.6s]",
+};
+
 export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
   const displayOffResult = useEntity(displayOffEntityId ?? "");
@@ -60,6 +67,13 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
   const setFan = async (mode: string) => {
     if (!connection) return;
     await callService(connection, "climate", "set_fan_mode", { fan_mode: mode }, { entity_id: entityId });
+  };
+
+  // Cada toque pasa a la siguiente velocidad de la lista (auto → baja → media → alta → auto)
+  const cycleFan = () => {
+    if (!fanModes?.length) return;
+    const i = fanMode ? fanModes.indexOf(fanMode) : -1;
+    void setFan(fanModes[(i + 1) % fanModes.length]);
   };
 
   const setTemp = async (temp: number) => {
@@ -147,39 +161,34 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
             </button>
           );
         })}
-        {displayScriptId && (
-          <button
-            onClick={toggleDisplay}
-            title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
-            className={`ml-auto min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-              displayOn
-                ? "bg-accent-yellow/20 text-accent-yellow"
-                : "bg-bg-secondary text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <SegmentDisplayIcon size={16} />
-          </button>
+        {(showFan || displayScriptId) && (
+          <div className="ml-auto flex items-center gap-1.5">
+            {showFan && (
+              <button
+                onClick={cycleFan}
+                title={`Ventilador: ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? "—"} (tocá para cambiar)`}
+                aria-label={`Ventilador ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? ""}`}
+                className="min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
+              >
+                <Fan size={20} className={`motion-reduce:animate-none ${FAN_SPIN[fanMode ?? ""] ?? ""}`} />
+              </button>
+            )}
+            {displayScriptId && (
+              <button
+                onClick={toggleDisplay}
+                title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
+                className={`min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+                  displayOn
+                    ? "bg-accent-yellow/20 text-accent-yellow"
+                    : "bg-bg-secondary text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <SegmentDisplayIcon size={16} />
+              </button>
+            )}
+          </div>
         )}
       </div>
-
-      {showFan && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Fan size={16} className="text-text-secondary mx-1" aria-label="Ventilador" />
-          {fanModes!.map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setFan(mode)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all min-h-[44px] flex items-center active:scale-95 ${
-                fanMode === mode
-                  ? "bg-accent-orange/20 text-accent-orange"
-                  : "bg-bg-secondary text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {FAN_LABELS[mode] ?? mode}
-            </button>
-          ))}
-        </div>
-      )}
 
     </div>
   );
