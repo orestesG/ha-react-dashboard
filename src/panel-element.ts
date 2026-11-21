@@ -1,7 +1,6 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { createElement, StrictMode, Component, type ReactNode } from 'react';
 import { useHAStore } from './store/ha-store';
-import App from './App';
 import type { Connection } from 'home-assistant-js-websocket';
 
 interface HassObject {
@@ -29,6 +28,9 @@ class PanelErrorBoundary extends Component<{ children: ReactNode }, { error: Err
 }
 
 export class MiDashboardPanel extends HTMLElement {
+  /** What the panel renders. Each entry point (panel-main, plano-main) sets it, so each bundle only carries its own app */
+  static view: () => ReactNode = () => null;
+
   private _root: Root | null = null;
   private _hass: HassObject | null = null;
   private _hasMounted = false;
@@ -48,7 +50,7 @@ export class MiDashboardPanel extends HTMLElement {
     this._root.render(
       createElement(StrictMode, null,
         createElement(PanelErrorBoundary, null,
-          createElement(App, { panelMode: true })
+          (this.constructor as typeof MiDashboardPanel).view()
         )
       )
     );

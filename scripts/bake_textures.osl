@@ -1,0 +1,39 @@
+// Procedural stone for the Plano 3D worktops, baked by scripts/bake_textures.py (Blender, Cycles + OSL).
+// The pattern is periodic over UV 0..1, so the baked image tiles without seams.
+// Col is written in display (sRGB) values: the bake treats it as raw data.
+
+// Signed periodic Perlin noise; fx, fy are whole repeats over the 0..1 square
+float pn(float u, float v, float fx, float fy, float seed)
+{
+    return pnoise("perlin", point(u * fx, v * fy, seed + 0.5), point(fx, fy, 512));
+}
+
+// Periodic fractal noise
+float pfbm(float u, float v, float fx, float fy, int octaves, float gain, float seed)
+{
+    float a = 1, f = 1, s = 0, t = 0;
+    for (int i = 0; i < octaves; i++) {
+        s += a * pn(u, v, fx * f, fy * f, seed + i * 7);
+        t += a;
+        a *= gain;
+        f *= 2;
+    }
+    return s / t;
+}
+
+shader bake_tex(
+    point UV = point(0, 0, 0),
+    output color Col = color(0.5),
+    output float Height = 0)
+{
+    float su = UV[0] - floor(UV[0]), sv = UV[1] - floor(UV[1]);
+
+    // ── Stone worktop (detail): fine speckled granite ──
+    float fine = pfbm(su, sv, 200, 200, 2, 0.6, 121);
+    float mid = pfbm(su, sv, 60, 60, 2, 0.5, 131);
+    float big = pfbm(su, sv, 5, 5, 3, 0.5, 141);
+    float flecks = clamp((pn(su, sv, 140, 140, 151) - 0.3) * 3, 0, 1);
+    float dark = clamp((pn(su, sv, 110, 110, 161) - 0.3) * 3, 0, 1);
+    Col = color(0.87 + fine * 0.035 + mid * 0.03 + big * 0.04 + flecks * 0.08 - dark * 0.12);
+    Height = fine * 0.22 + mid * 0.15 - dark * 0.3;
+}

@@ -34,6 +34,11 @@ dnd-experiment-plan.md
 
 # Personal dashboard configuration (entity IDs, names)
 src/dashboard.config.ts
+# Floor plan of the flat (real measurements, entity IDs)
+src/floorplan.config.ts
+
+# Compiled OSL shaders (Blender rebuilds them from the .osl)
+*.oso
 
 # GitHub Actions self-hosted runner (instalado localmente, no debe versionarse)
 actions-runner/

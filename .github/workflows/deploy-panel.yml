@@ -36,6 +36,14 @@ jobs:
             Copy-Item "src\dashboard.config.example.ts" "src\dashboard.config.ts" -Force
             Write-Host "WARN: usando dashboard.config.example.ts"
           }
+          $src = "D:\HAReactDash-style-fixes\src\floorplan.config.ts"
+          if (Test-Path $src) {
+            Copy-Item $src "src\floorplan.config.ts" -Force
+            Write-Host "OK: floorplan.config.ts copiado"
+          } else {
+            Copy-Item "src\floorplan.config.example.ts" "src\floorplan.config.ts" -Force
+            Write-Host "WARN: usando floorplan.config.example.ts"
+          }
 
       # ── Dashboard config: Linux/Docker runner (desde secret base64) ────────
       - name: Copy dashboard config (Linux)
@@ -43,7 +51,15 @@ jobs:
         shell: bash
         env:
           DASHBOARD_CONFIG_B64: ${{ secrets.DASHBOARD_CONFIG_B64 }}
+          FLOORPLAN_CONFIG_B64: ${{ secrets.FLOORPLAN_CONFIG_B64 }}
         run: |
+          if [ -n "$FLOORPLAN_CONFIG_B64" ]; then
+            echo "$FLOORPLAN_CONFIG_B64" | base64 -d > src/floorplan.config.ts
+            echo "OK: floorplan.config.ts restaurado desde secret"
+          else
+            cp src/floorplan.config.example.ts src/floorplan.config.ts
+            echo "WARN: usando floorplan.config.example.ts (secret FLOORPLAN_CONFIG_B64 no configurado)"
+          fi
           if [ -n "$DASHBOARD_CONFIG_B64" ]; then
             echo "$DASHBOARD_CONFIG_B64" | base64 -d > src/dashboard.config.ts
             echo "OK: dashboard.config.ts restaurado desde secret"
@@ -71,13 +87,14 @@ jobs:
 
           if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
           Copy-Item dist\main.js "$dest\main.js" -Force
-          Write-Host "OK: main.js copiado"
+          Copy-Item dist\plano.js "$dest\plano.js" -Force
+          Write-Host "OK: main.js y plano.js copiados"
 
           $sha     = $env:GITHUB_SHA.Substring(0, 7)
           $cfgPath = "$share\configuration.yaml"
           $utf8    = [System.Text.UTF8Encoding]::new($false)
           $content = [System.IO.File]::ReadAllText($cfgPath, $utf8)
-          $updated = $content -replace 'module_url: /local/mi-dashboard/main\.js(\?v=[a-f0-9]+)?', "module_url: /local/mi-dashboard/main.js?v=$sha"
+          $updated = $content -replace 'module_url: /local/mi-dashboard/(main|plano)\.js(\?v=[a-f0-9]+)?', ('module_url: /local/mi-dashboard/$1.js?v=' + $sha)
           [System.IO.File]::WriteAllText($cfgPath, $updated, $utf8)
           Write-Host "OK: module_url actualizado a ?v=$sha"
 
@@ -104,16 +121,16 @@ jobs:
 
           # Copiar main.js via smbclient
           smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
-            -c "mkdir $HA_SUBDIR; put dist/main.js $HA_SUBDIR/main.js" 2>/dev/null || \
+            -c "mkdir $HA_SUBDIR; put dist/main.js $HA_SUBDIR/main.js; put dist/plano.js $HA_SUBDIR/plano.js" 2>/dev/null || \
           smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
-            -c "put dist/main.js $HA_SUBDIR/main.js"
-          echo "OK: main.js copiado"
+            -c "put dist/main.js $HA_SUBDIR/main.js; put dist/plano.js $HA_SUBDIR/plano.js"
+          echo "OK: main.js y plano.js copiados"
 
           # Descargar, parchear y subir configuration.yaml
           smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "get configuration.yaml /tmp/configuration.yaml"
           SHA="${GITHUB_SHA:0:7}"
-          sed -E -i "s|module_url: /local/mi-dashboard/main\.js(\?v=[a-f0-9]+)?|module_url: /local/mi-dashboard/main.js?v=${SHA}|" \
+          sed -E -i "s#module_url: /local/mi-dashboard/(main|plano)\.js(\?v=[a-f0-9]+)?#module_url: /local/mi-dashboard/\1.js?v=${SHA}#" \
             /tmp/configuration.yaml
           smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "put /tmp/configuration.yaml configuration.yaml"

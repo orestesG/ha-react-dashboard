@@ -228,7 +228,8 @@ export const useLayoutStore = create<LayoutState>((set) => ({
       if (isCurrent(haData)) {
         // HA has up-to-date data — apply it (cross-device sync).
         // Always start on the first tab so heavy cards on other tabs load on demand.
-        set({ tabs: haData.tabs, activeTabId: 'main' })
+        // The 3D plan was a tab in dev builds before it moved to its own HA panel: drop it if it was saved
+        set({ tabs: haData.tabs.filter((t) => t.id !== 'plano'), activeTabId: 'main' })
       } else {
         // No px layout yet: convert the row-based one (HA, or localStorage on a first run)
         let tabs = DEFAULT_TABS
