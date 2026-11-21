@@ -3,12 +3,16 @@ import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
-import { Thermometer, Plus, Minus } from "lucide-react";
+import { Thermometer, Plus, Minus, Fan } from "lucide-react";
+import { FanLow, FanMedium, FanHigh } from "../ui/fanIcons";
 
 interface ClimateCardProps {
   entityId: string;
   name: string;
-  consoleEntityId?: string;
+  /** script.* de HA que invierte la luz del display (la lógica vive en HA, así también la usa el asistente de voz) */
+  displayScriptId?: string;
+  /** input_boolean.* que recuerda si el display está apagado */
+  displayOffEntityId?: string;
 }
 
 const MODES: { value: string; label: string }[] = [
@@ -20,9 +24,19 @@ const MODES: { value: string; label: string }[] = [
   { value: "fan_only", label: "Fan" },
 ];
 
-export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProps) {
+const FAN_LABELS: Record<string, string> = {
+  auto: "Auto",
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+};
+
+// Un ícono por velocidad: el mismo aspa con más palas cuanto más rápido (auto: el de 4 palas + una "A")
+const FAN_ICONS = { auto: FanLow, low: FanLow, medium: FanMedium, high: FanHigh };
+
+export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
-  const consoleResult = useEntity(consoleEntityId ?? "");
+  const displayOffResult = useEntity(displayOffEntityId ?? "");
   const connection = useHAStore((s) => s.connection);
 
   const state = entity?.state;
@@ -33,13 +47,31 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
   const minTemp  = (entity?.attributes?.min_temp as number | undefined) ?? 16;
   const maxTemp  = (entity?.attributes?.max_temp as number | undefined) ?? 30;
 
-  const consoleOn = consoleResult.entity?.state === "on";
+  const displayOn = displayOffResult.entity?.state !== "on";
 
   const isOff = state === "off";
+
+  const fanModes = entity?.attributes?.fan_modes as string[] | null | undefined;
+  const fanMode = entity?.attributes?.fan_mode as string | null | undefined;
+  // En modo seco el aire fuerza ventilador automático: elegir velocidad no tiene efecto
+  const FanIcon = FAN_ICONS[fanMode as keyof typeof FAN_ICONS] ?? Fan;
+  const showFan = !isOff && state !== "dry" && (fanModes?.length ?? 0) > 1;
 
   const setMode = async (mode: string) => {
     if (!connection) return;
     await callService(connection, "climate", "set_hvac_mode", { hvac_mode: mode }, { entity_id: entityId });
+  };
+
+  const setFan = async (mode: string) => {
+    if (!connection) return;
+    await callService(connection, "climate", "set_fan_mode", { fan_mode: mode }, { entity_id: entityId });
+  };
+
+  // Cada toque pasa a la siguiente velocidad de la lista (auto → baja → media → alta → auto)
+  const cycleFan = () => {
+    if (!fanModes?.length) return;
+    const i = fanMode ? fanModes.indexOf(fanMode) : -1;
+    void setFan(fanModes[(i + 1) % fanModes.length]);
   };
 
   const setTemp = async (temp: number) => {
@@ -47,9 +79,9 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
     await callService(connection, "climate", "set_temperature", { temperature: temp }, { entity_id: entityId });
   };
 
-  const toggleConsole = async () => {
-    if (!connection || !consoleEntityId) return;
-    await callService(connection, "input_boolean", "toggle", undefined, { entity_id: consoleEntityId });
+  const toggleDisplay = async () => {
+    if (!connection || !displayScriptId) return;
+    await callService(connection, "script", "turn_on", undefined, { entity_id: displayScriptId });
   };
 
   if (loading) {
@@ -127,18 +159,33 @@ export function ClimateCard({ entityId, name, consoleEntityId }: ClimateCardProp
             </button>
           );
         })}
-        {consoleEntityId && (
-          <button
-            onClick={toggleConsole}
-            title={consoleOn ? "Luz consola encendida" : "Luz consola apagada"}
-            className={`ml-auto min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-              consoleOn
-                ? "bg-accent-yellow/20 text-accent-yellow"
-                : "bg-bg-secondary text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <SegmentDisplayIcon size={16} />
-          </button>
+        {(showFan || displayScriptId) && (
+          <div className="ml-auto flex items-center gap-1.5">
+            {showFan && (
+              <button
+                onClick={cycleFan}
+                title={`Ventilador: ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? "—"} (tocá para cambiar)`}
+                aria-label={`Ventilador ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? ""}`}
+                className="relative min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
+              >
+                <FanIcon size={22} />
+                {fanMode === "auto" && <span className="absolute bottom-2 right-2 text-[9px] font-bold leading-none">A</span>}
+              </button>
+            )}
+            {displayScriptId && (
+              <button
+                onClick={toggleDisplay}
+                title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
+                className={`min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+                  displayOn
+                    ? "bg-accent-yellow/20 text-accent-yellow"
+                    : "bg-bg-secondary text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <SegmentDisplayIcon size={16} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

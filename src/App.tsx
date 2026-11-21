@@ -30,7 +30,7 @@ import { FloorplanCard } from "./components/widgets/FloorplanCard";
 import { TabBar } from "./components/ui/TabBar";
 import { GridSkeleton } from "./components/ui/GridSkeleton";
 import { LayoutGrid, RotateCcw, Check, GripHorizontal } from "lucide-react";
-import { PERSON_ENTITY, VACUUM_ENTITY, batterySensors, scenes, commuteRoutes } from "./dashboard.config";
+import { PERSON_ENTITY, VACUUM_ENTITY, batterySensors, scenes, commuteRoutes, commuteTrips } from "./dashboard.config";
 
 const HA_URL = import.meta.env.VITE_HA_URL || "";
 const HA_TOKEN = import.meta.env.VITE_HA_TOKEN || "";
@@ -207,7 +207,7 @@ function App({ panelMode = false }: AppProps) {
         <div className="flex items-center flex-wrap justify-end gap-3">
           <WeatherChip />
           <EnergyChip />
-          <CommuteChip routes={commuteRoutes} personEntityId={PERSON_ENTITY} />
+          <CommuteChip routes={commuteRoutes} trips={commuteTrips} personEntityId={PERSON_ENTITY} />
           <SceneButtons scenes={scenes} />
 
           {editMode && (
@@ -296,7 +296,7 @@ function App({ panelMode = false }: AppProps) {
             {items.includes('weather')        && <div key="weather"><GridItem id="weather" editMode={editMode} {...fitProps("weather")}><WeatherWidget /></GridItem></div>}
             {items.includes('energy')         && <div key="energy"><GridItem id="energy" editMode={editMode} {...fitProps("energy")}><EnergyChart /></GridItem></div>}
             {items.includes('battery')        && <div key="battery"><GridItem id="battery" editMode={editMode} {...fitProps("battery")}><BatteryWidget sensors={batterySensors} /></GridItem></div>}
-            {items.includes('commute')        && <div key="commute"><GridItem id="commute" editMode={editMode} {...fitProps("commute")}><CommuteCard routes={commuteRoutes} personEntityId={PERSON_ENTITY} /></GridItem></div>}
+            {items.includes('commute')        && <div key="commute"><GridItem id="commute" editMode={editMode} {...fitProps("commute")}><CommuteCard routes={commuteRoutes} trips={commuteTrips} personEntityId={PERSON_ENTITY} /></GridItem></div>}
             {items.includes('exchange-rates') && <div key="exchange-rates"><GridItem id="exchange-rates" editMode={editMode} {...fitProps("exchange-rates")}><ExchangeRateCard /></GridItem></div>}
             {items.includes('floorplan')      && <div key="floorplan"><GridItem id="floorplan" editMode={editMode} {...fitProps("floorplan")}><FloorplanCard /></GridItem></div>}
           </ResponsiveGridLayout>
