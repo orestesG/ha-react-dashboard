@@ -3,7 +3,8 @@ import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
-import { Thermometer, Plus, Minus, Fan, LoaderPinwheel, Aperture, Sparkles } from "lucide-react";
+import { Thermometer, Plus, Minus, Fan } from "lucide-react";
+import { FanLow, FanMedium, FanHigh } from "../ui/fanIcons";
 
 interface ClimateCardProps {
   entityId: string;
@@ -30,8 +31,8 @@ const FAN_LABELS: Record<string, string> = {
   high: "Alta",
 };
 
-// Un ícono fijo por velocidad (lucide no tiene cuatro aspas distintas)
-const FAN_ICONS = { auto: Sparkles, low: Fan, medium: LoaderPinwheel, high: Aperture };
+// Un ícono por velocidad: el mismo aspa con más palas cuanto más rápido (auto: el de 4 palas + una "A")
+const FAN_ICONS = { auto: FanLow, low: FanLow, medium: FanMedium, high: FanHigh };
 
 export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
@@ -165,9 +166,10 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
                 onClick={cycleFan}
                 title={`Ventilador: ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? "—"} (tocá para cambiar)`}
                 aria-label={`Ventilador ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? ""}`}
-                className="min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
+                className="relative min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
               >
-                <FanIcon size={20} />
+                <FanIcon size={22} />
+                {fanMode === "auto" && <span className="absolute bottom-2 right-2 text-[9px] font-bold leading-none">A</span>}
               </button>
             )}
             {displayScriptId && (
