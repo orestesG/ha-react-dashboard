@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { HassEntity } from "home-assistant-js-websocket";
 import {
@@ -185,7 +185,8 @@ function DeviceControl({ device }: { device: Device }) {
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-export function FloorplanCard() {
+/** `headerStart`: rendered before the title (the panel puts HA's menu button there) */
+export function FloorplanCard({ headerStart }: { headerStart?: ReactNode } = {}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<FloorplanScene | null>(null);
   const markerEls = useRef(new Map<string, HTMLElement>());
@@ -281,6 +282,7 @@ export function FloorplanCard() {
     <div className="h-full flex flex-col bg-bg-secondary rounded-2xl border border-border-main overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-main">
         <div className="flex items-center gap-2 text-text-primary font-medium text-sm">
+          {headerStart}
           <Box size={16} className="text-accent-blue" />
           Plano 3D
         </div>

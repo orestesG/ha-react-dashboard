@@ -5,4 +5,4 @@ import { createElement } from 'react';
 import PlanoApp from './PlanoApp';
 import { definePanel } from './panel-element';
 
-definePanel('mi-plano', () => createElement(PlanoApp, { panelMode: true }));
+definePanel('mi-plano', ({ showMenuButton }) => createElement(PlanoApp, { panelMode: true, showMenuButton }));

@@ -28,6 +28,7 @@ import { CommuteChip } from "./components/widgets/CommuteChip";
 import { ExchangeRateCard } from "./components/widgets/ExchangeRateCard";
 import { TabBar } from "./components/ui/TabBar";
 import { GridSkeleton } from "./components/ui/GridSkeleton";
+import { HAMenuButton } from "./components/ui/HAMenuButton";
 import { LayoutGrid, RotateCcw, Check, GripHorizontal } from "lucide-react";
 import { PERSON_ENTITY, VACUUM_ENTITY, batterySensors, scenes, commuteRoutes, commuteTrips } from "./dashboard.config";
 
@@ -36,6 +37,8 @@ const HA_TOKEN = import.meta.env.VITE_HA_TOKEN || "";
 
 interface AppProps {
   panelMode?: boolean;
+  /** Inside HA with its sidebar hidden (see panel-element) */
+  showMenuButton?: boolean;
 }
 
 const BREAKPOINTS = { lg: 1280, md: 768, sm: 0 };
@@ -124,7 +127,7 @@ function GridItem({ id, editMode, maxH, onFit, children }: GridItemProps) {
   );
 }
 
-function App({ panelMode = false }: AppProps) {
+function App({ panelMode = false, showMenuButton = false }: AppProps) {
   const { isConnected, error, entityCount } = useHA(
     panelMode ? undefined : HA_URL,
     panelMode ? undefined : HA_TOKEN,
@@ -195,13 +198,16 @@ function App({ panelMode = false }: AppProps) {
     <div className="min-h-screen bg-bg-primary px-4 md:px-6 pb-4 md:pb-6">
       <div className="sticky top-0 z-30 bg-bg-primary -mx-4 md:-mx-6 px-4 md:px-6">
       <header className="pt-4 md:pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-text-primary text-xl md:text-2xl font-semibold">
-            Dashboard
-          </h1>
-          {isConnected && (
-            <p className="text-text-secondary text-sm">{entityCount} entidades</p>
-          )}
+        <div className="flex items-center gap-2">
+          {showMenuButton && <HAMenuButton />}
+          <div>
+            <h1 className="text-text-primary text-xl md:text-2xl font-semibold">
+              Dashboard
+            </h1>
+            {isConnected && (
+              <p className="text-text-secondary text-sm">{entityCount} entidades</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center flex-wrap justify-end gap-3">
           <WeatherChip />

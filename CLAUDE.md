@@ -38,6 +38,7 @@ Dashboard personalizado para Home Assistant, construido en React + TypeScript. F
   - En `connectedCallback`: inyecta un `<style id="mi-dash-styles">` con el CSS de su panel directamente en el shadow root de `ha-panel-custom` (los estilos en `document.head` no atraviesan el shadow DOM). HA **reutiliza** ese shadow root al pasar de un panel al otro: el `<style>` lleva `data-panel` y se reemplaza si es del otro panel
   - `definePanel`: si el tag ya está registrado en la página es un build anterior (tras un deploy HA reinicia y la app se reconecta **sin recargar**; un custom element no se puede redefinir), así que recarga una vez (guarda de 30 s en `sessionStorage` contra loops)
   - Recibe el objeto `hass` de HA vía setter; llama `useHAStore.getState().injectConnection()` una sola vez
+  - Menú de HA: un custom panel no tiene la barra de HA, así que en el teléfono no hay forma de abrir el menú lateral. Con `narrow` (lo setea HA) o `hass.dockedSidebar === 'always_hidden'` la vista recibe `showMenuButton` y muestra `<HAMenuButton>` (`components/ui/`), que dispara `hass-toggle-menu` con `composed: true` (como el botón propio de HA)
   - Dark mode: aplica/quita la clase `.dark` en `document.documentElement` según `hass.themes.darkMode`
 
 **Por qué el CSS requiere inyección manual en el shadow root:**
