@@ -30,17 +30,19 @@ Dashboard personalizado para Home Assistant, construido en React + TypeScript. F
 
 ### Panel HA (`npm run build:panel`)
 - Entry: `src/panel-main.ts` → `src/panel-element.ts` → `App.tsx`
-- Emite un único `dist/main.js` (no code-splitting) y, en un segundo build (`PANEL=plano`), `dist/plano.js`: el panel aparte del Plano 3D (`src/plano-main.ts` → `PlanoApp.tsx`), para que three.js, texturas y renders no carguen con el dashboard. Ambos usan `panel-element.ts`; cada entry fija `MiDashboardPanel.view`
+- Emite un único `dist/main.js` (no code-splitting) y, en un segundo build (`PANEL=plano`), `dist/plano.js`: el panel aparte del Plano 3D (`src/plano-main.ts` → `PlanoApp.tsx`), para que three.js, texturas y renders no carguen con el dashboard. Ambos usan `panel-element.ts`; cada entry llama `definePanel(tag, view)`
 - `VITE_BUILD_PANEL=true` activa en `vite.config.ts`:
-  - `cssInjectedByJs`: bundlea el CSS en el JS; guarda el string en `window.__dashCss`
+  - `cssInjectedByJs`: bundlea el CSS en el JS; lo guarda en `window.__miDashCss[<tag del panel>]` (cada bundle el suyo: el del dashboard trae además el CSS de react-grid-layout)
   - `define`: shimea `process` y `process.env.NODE_ENV` (ausentes en browser)
 - `panel-element.ts` (`MiDashboardPanel extends HTMLElement`):
-  - En `connectedCallback`: inyecta un `<style>` con `window.__dashCss` directamente en el shadow root de `ha-panel-custom` (los estilos en `document.head` no atraviesan el shadow DOM)
+  - En `connectedCallback`: inyecta un `<style id="mi-dash-styles">` con el CSS de su panel directamente en el shadow root de `ha-panel-custom` (los estilos en `document.head` no atraviesan el shadow DOM). HA **reutiliza** ese shadow root al pasar de un panel al otro: el `<style>` lleva `data-panel` y se reemplaza si es del otro panel
+  - `definePanel`: si el tag ya está registrado en la página es un build anterior (tras un deploy HA reinicia y la app se reconecta **sin recargar**; un custom element no se puede redefinir), así que recarga una vez (guarda de 30 s en `sessionStorage` contra loops)
   - Recibe el objeto `hass` de HA vía setter; llama `useHAStore.getState().injectConnection()` una sola vez
+  - Menú de HA: un custom panel no tiene la barra de HA, así que en el teléfono no hay forma de abrir el menú lateral. Con `narrow` (lo setea HA) o `hass.dockedSidebar === 'always_hidden'` la vista recibe `showMenuButton` y muestra `<HAMenuButton>` (`components/ui/`), que dispara `hass-toggle-menu` con `composed: true` (como el botón propio de HA)
   - Dark mode: aplica/quita la clase `.dark` en `document.documentElement` según `hass.themes.darkMode`
 
 **Por qué el CSS requiere inyección manual en el shadow root:**
-`ha-panel-custom` es un LitElement con shadow DOM. `document.head` no cruza esa barrera. La solución almacena el CSS compilado en `window.__dashCss` y lo reinyecta en `this.getRootNode()` (el shadow root padre) al conectar el elemento.
+`ha-panel-custom` es un LitElement con shadow DOM. `document.head` no cruza esa barrera. La solución almacena el CSS compilado en `window.__miDashCss` y lo reinyecta en `this.getRootNode()` (el shadow root padre) al conectar el elemento.
 
 ---
 
@@ -192,7 +194,11 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 
 ### Estilos no aplicados en el panel HA
 - **Causa**: `ha-panel-custom` tiene shadow DOM; `document.head` no penetra
-- **Fix**: `cssInjectedByJs` con `injectCode` custom guarda CSS en `window.__dashCss`; `panel-element.ts` inyecta `<style>` en `this.getRootNode()` (el shadow root padre)
+- **Fix**: `cssInjectedByJs` con `injectCode` custom guarda CSS en `window.__miDashCss[tag]`; `panel-element.ts` inyecta `<style>` en `this.getRootNode()` (el shadow root padre)
+
+### La app de HA sigue mostrando el panel viejo / el plano sin alto
+- **Causa**: tras un deploy HA reinicia y la app se reconecta sin recargar la página: el build anterior sigue registrado (`customElements.define` falla con "the name has already been used") y, como ambos paneles comparten el shadow root de `ha-panel-custom`, uno podía quedarse con el CSS del otro (el plano sin `h-screen`, el dashboard sin el CSS de la grilla)
+- **Fix**: `definePanel` recarga la página una vez; el `<style>` se cambia según `data-panel`. Los errores de JS de la app aparecen en el log de HA (`system_log/list`, `frontend.js.*`)
 
 ### TypeScript con react-grid-layout v4 (tipos)
 - `Layout` (item individual) → `LayoutItem`

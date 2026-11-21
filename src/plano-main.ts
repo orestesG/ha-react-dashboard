@@ -3,7 +3,6 @@
 import './index.css';
 import { createElement } from 'react';
 import PlanoApp from './PlanoApp';
-import { MiDashboardPanel } from './panel-element';
+import { definePanel } from './panel-element';
 
-MiDashboardPanel.view = () => createElement(PlanoApp, { panelMode: true });
-customElements.define('mi-plano', MiDashboardPanel);
+definePanel('mi-plano', ({ showMenuButton }) => createElement(PlanoApp, { panelMode: true, showMenuButton }));
