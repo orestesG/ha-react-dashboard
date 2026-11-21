@@ -31,6 +31,7 @@ export function Oficina() {
     >
       <SwitchTile entityId="switch.sonoff_10024ae654_1" name="Luz" />
       <LightTile entityId="light.philips_strip5_9631_light" name="LED Monitor" />
+      <LightTile entityId="light.led_oficina" name="Luces LED" />
       <CoverTile entityId="cover.sonoff_10023e3f9e" name="Persiana" />
       <ClimateCard entityId="climate.aire_cuarto_chico" name="Aire" displayScriptId="script.luz_display_aire_chico" displayOffEntityId="input_boolean.aire_cuarto_chico_display_apagado" />
       <SwitchTile entityId="switch.sonoff_10023c5cd0" name="Suko" />
