@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useEntity } from "../../hooks/useEntity";
 import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { Tile } from "../ui/Tile";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { Lightbulb, Sun, Moon, Palette } from "lucide-react";
+import { colorEffectsOf, effectRgb, nearestColorEffect } from "../../lib/effect-light";
 
 interface LightTileProps {
   entityId: string;
@@ -40,8 +41,18 @@ export function LightTile({ entityId, name }: LightTileProps) {
   const brightness = attributes?.brightness as number | null | undefined;
   const rgbColor = attributes?.rgb_color as [number, number, number] | null | undefined;
   const supportedModes = attributes?.supported_color_modes as string[] | undefined;
+  const effectList = attributes?.effect_list as string[] | undefined;
+  const currentEffect = attributes?.effect as string | null | undefined;
 
   const supportsColor = supportedModes?.some((m) => ["hs", "rgb", "rgbw", "rgbww"].includes(m)) ?? false;
+  const supportsBrightness = supportedModes?.some((m) => m !== "onoff") ?? true;
+  // IR lights (LED Infrared) have no rgb mode: the remote's color keys are named effects.
+  const colorEffects = useMemo(
+    () => (supportsColor ? [] : colorEffectsOf(effectList)),
+    [supportsColor, effectList]
+  );
+  const colorViaEffect = colorEffects.length > 0;
+  const showsColor = supportsColor || colorViaEffect;
 
   const [localBrightness, setLocalBrightness] = useState<number>(brightness ?? 255);
   const [showColors, setShowColors] = useState(false);
@@ -101,9 +112,14 @@ export function LightTile({ entityId, name }: LightTileProps) {
   const setColor = useCallback(
     async (rgb: [number, number, number]) => {
       if (!connection) return;
+      if (colorViaEffect) {
+        const effect = nearestColorEffect(rgb, colorEffects);
+        if (effect) await callService(connection, "light", "turn_on", { effect }, { entity_id: entityId });
+        return;
+      }
       await callService(connection, "light", "turn_on", { rgb_color: rgb }, { entity_id: entityId });
     },
-    [connection, entityId]
+    [connection, entityId, colorViaEffect, colorEffects]
   );
 
   useEffect(() => {
@@ -122,7 +138,7 @@ export function LightTile({ entityId, name }: LightTileProps) {
   }
 
   const brightnessPct = Math.round(((localBrightness ?? 255) / 255) * 100);
-  const currentRgb = rgbColor ?? [255, 255, 255];
+  const currentRgb = (colorViaEffect ? effectRgb(currentEffect) : rgbColor) ?? [255, 255, 255];
 
   const handleTileClick = () => {
     // Cancel any pending brightness debounce and the off-debounce so the UI
@@ -141,35 +157,37 @@ export function LightTile({ entityId, name }: LightTileProps) {
         <Tile
           icon={<Lightbulb size={20} />}
           name={name}
-          state={isOn ? `${brightnessPct}%` : "Apagado"}
+          state={isOn ? (supportsBrightness ? `${brightnessPct}%` : "Encendido") : "Apagado"}
           active={isOn}
           color={isOn ? "accent-yellow" : "accent-blue"}
           onClick={handleTileClick}
         />
         <FavoriteStar entityId={entityId} className="absolute top-2 right-2 z-10" />
       </div>
-      {controlsVisible && (
+      {controlsVisible && (supportsBrightness || showsColor) && (
         <div className="bg-bg-tertiary rounded-b-xl px-4 py-3 -mt-1 space-y-3">
-          <div className="flex items-center gap-2 py-2">
-            <Moon size={14} className="text-text-secondary shrink-0" />
-            <input
-              type="range"
-              min={1}
-              max={255}
-              value={localBrightness}
-              onChange={(e) => handleBrightnessChange(Number(e.target.value))}
-              className="w-full h-3 rounded-full appearance-none cursor-pointer
-                bg-gray-700
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-yellow
-                [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
-                [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent-yellow [&::-moz-range-thumb]:border-0"
-            />
-            <Sun size={14} className="text-text-secondary shrink-0" />
-            <span className="text-xs text-text-secondary w-8 text-right tabular-nums">{brightnessPct}%</span>
-          </div>
+          {supportsBrightness && (
+            <div className="flex items-center gap-2 py-2">
+              <Moon size={14} className="text-text-secondary shrink-0" />
+              <input
+                type="range"
+                min={1}
+                max={255}
+                value={localBrightness}
+                onChange={(e) => handleBrightnessChange(Number(e.target.value))}
+                className="w-full h-3 rounded-full appearance-none cursor-pointer
+                  bg-gray-700
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-yellow
+                  [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5
+                  [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent-yellow [&::-moz-range-thumb]:border-0"
+              />
+              <Sun size={14} className="text-text-secondary shrink-0" />
+              <span className="text-xs text-text-secondary w-8 text-right tabular-nums">{brightnessPct}%</span>
+            </div>
+          )}
 
-          {supportsColor && (
+          {showsColor && (
             <div>
               <button
                 onClick={() => setShowColors(!showColors)}
@@ -187,8 +205,9 @@ export function LightTile({ entityId, name }: LightTileProps) {
                   <div className="grid grid-cols-5 gap-1.5 mb-2">
                     {PRESET_COLORS.map((c) => {
                       const hex = rgbToHex(c.rgb[0], c.rgb[1], c.rgb[2]);
-                      const isActive =
-                        rgbColor != null &&
+                      const isActive = colorViaEffect
+                        ? currentEffect != null && nearestColorEffect(c.rgb, colorEffects) === currentEffect
+                        : rgbColor != null &&
                         Math.abs(rgbColor[0] - c.rgb[0]) < 15 &&
                         Math.abs(rgbColor[1] - c.rgb[1]) < 15 &&
                         Math.abs(rgbColor[2] - c.rgb[2]) < 15;
