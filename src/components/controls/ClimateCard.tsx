@@ -3,7 +3,7 @@ import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
-import { Thermometer, Plus, Minus, Fan } from "lucide-react";
+import { Thermometer, Plus, Minus, Fan, LoaderPinwheel, Aperture, Sparkles } from "lucide-react";
 
 interface ClimateCardProps {
   entityId: string;
@@ -30,12 +30,8 @@ const FAN_LABELS: Record<string, string> = {
   high: "Alta",
 };
 
-// Cuanto más rápida la velocidad, más rápido gira el aspa (auto queda quieta)
-const FAN_SPIN: Record<string, string> = {
-  low: "animate-spin [animation-duration:3s]",
-  medium: "animate-spin [animation-duration:1.5s]",
-  high: "animate-spin [animation-duration:0.6s]",
-};
+// Un ícono fijo por velocidad (lucide no tiene cuatro aspas distintas)
+const FAN_ICONS = { auto: Sparkles, low: Fan, medium: LoaderPinwheel, high: Aperture };
 
 export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
@@ -57,6 +53,7 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
   const fanModes = entity?.attributes?.fan_modes as string[] | null | undefined;
   const fanMode = entity?.attributes?.fan_mode as string | null | undefined;
   // En modo seco el aire fuerza ventilador automático: elegir velocidad no tiene efecto
+  const FanIcon = FAN_ICONS[fanMode as keyof typeof FAN_ICONS] ?? Fan;
   const showFan = !isOff && state !== "dry" && (fanModes?.length ?? 0) > 1;
 
   const setMode = async (mode: string) => {
@@ -170,7 +167,7 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
                 aria-label={`Ventilador ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? ""}`}
                 className="min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
               >
-                <Fan size={20} className={`motion-reduce:animate-none ${FAN_SPIN[fanMode ?? ""] ?? ""}`} />
+                <FanIcon size={20} />
               </button>
             )}
             {displayScriptId && (
