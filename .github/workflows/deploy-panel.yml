@@ -138,9 +138,8 @@ jobs:
 
       # ── Restart HA (both runners) ──────────────────────────────────────────
       # panel_custom only reads module_url at startup: without a restart the apps keep the old
-      # ?v= and their cached build. Checks the config first and fails if HA doesn't come back
-      # announcing both panels with this commit's ?v=.
-      - name: Restart HA and wait for the new panels
+      # ?v= and their cached build. Checks the config first; doesn't wait for HA to come back.
+      - name: Restart HA
         env:
           HA_URL:   ${{ secrets.HA_URL }}
           HA_TOKEN: ${{ secrets.HA_TOKEN }}
