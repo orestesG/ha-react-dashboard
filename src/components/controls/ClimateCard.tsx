@@ -3,7 +3,8 @@ import { useHAStore } from "../../store/ha-store";
 import { callService } from "../../lib/ha-client";
 import { FavoriteStar } from "../ui/FavoriteStar";
 import { SegmentDisplayIcon } from "../ui/SegmentDisplayIcon";
-import { Thermometer, Plus, Minus } from "lucide-react";
+import { Thermometer, Plus, Minus, Fan } from "lucide-react";
+import { FanLow, FanMedium, FanHigh } from "../ui/fanIcons";
 
 interface ClimateCardProps {
   entityId: string;
@@ -23,6 +24,16 @@ const MODES: { value: string; label: string }[] = [
   { value: "fan_only", label: "Fan" },
 ];
 
+const FAN_LABELS: Record<string, string> = {
+  auto: "Auto",
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+};
+
+// Un ícono por velocidad: el mismo aspa con más palas cuanto más rápido (auto: el de 4 palas + una "A")
+const FAN_ICONS = { auto: FanLow, low: FanLow, medium: FanMedium, high: FanHigh };
+
 export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityId }: ClimateCardProps) {
   const { entity, loading } = useEntity(entityId);
   const displayOffResult = useEntity(displayOffEntityId ?? "");
@@ -40,9 +51,27 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
 
   const isOff = state === "off";
 
+  const fanModes = entity?.attributes?.fan_modes as string[] | null | undefined;
+  const fanMode = entity?.attributes?.fan_mode as string | null | undefined;
+  // En modo seco el aire fuerza ventilador automático: elegir velocidad no tiene efecto
+  const FanIcon = FAN_ICONS[fanMode as keyof typeof FAN_ICONS] ?? Fan;
+  const showFan = !isOff && state !== "dry" && (fanModes?.length ?? 0) > 1;
+
   const setMode = async (mode: string) => {
     if (!connection) return;
     await callService(connection, "climate", "set_hvac_mode", { hvac_mode: mode }, { entity_id: entityId });
+  };
+
+  const setFan = async (mode: string) => {
+    if (!connection) return;
+    await callService(connection, "climate", "set_fan_mode", { fan_mode: mode }, { entity_id: entityId });
+  };
+
+  // Cada toque pasa a la siguiente velocidad de la lista (auto → baja → media → alta → auto)
+  const cycleFan = () => {
+    if (!fanModes?.length) return;
+    const i = fanMode ? fanModes.indexOf(fanMode) : -1;
+    void setFan(fanModes[(i + 1) % fanModes.length]);
   };
 
   const setTemp = async (temp: number) => {
@@ -130,18 +159,33 @@ export function ClimateCard({ entityId, name, displayScriptId, displayOffEntityI
             </button>
           );
         })}
-        {displayScriptId && (
-          <button
-            onClick={toggleDisplay}
-            title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
-            className={`ml-auto min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-              displayOn
-                ? "bg-accent-yellow/20 text-accent-yellow"
-                : "bg-bg-secondary text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <SegmentDisplayIcon size={16} />
-          </button>
+        {(showFan || displayScriptId) && (
+          <div className="ml-auto flex items-center gap-1.5">
+            {showFan && (
+              <button
+                onClick={cycleFan}
+                title={`Ventilador: ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? "—"} (tocá para cambiar)`}
+                aria-label={`Ventilador ${FAN_LABELS[fanMode ?? ""] ?? fanMode ?? ""}`}
+                className="relative min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 bg-accent-orange/20 text-accent-orange"
+              >
+                <FanIcon size={22} />
+                {fanMode === "auto" && <span className="absolute bottom-2 right-2 text-[9px] font-bold leading-none">A</span>}
+              </button>
+            )}
+            {displayScriptId && (
+              <button
+                onClick={toggleDisplay}
+                title={displayOn ? "Luz del display encendida" : "Luz del display apagada"}
+                className={`min-h-[44px] w-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+                  displayOn
+                    ? "bg-accent-yellow/20 text-accent-yellow"
+                    : "bg-bg-secondary text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <SegmentDisplayIcon size={16} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
