@@ -13,14 +13,25 @@ if (!HA_URL || !HA_TOKEN || !SHA) {
 const base = HA_URL.replace(/\/$/, '')
 const headers = { Authorization: `Bearer ${HA_TOKEN}`, 'Content-Type': 'application/json' }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const WAIT_MS = 5 * 60_000
+// HA can take 6-7 min to start when an integration blocks the startup phase
+const WAIT_MS = 10 * 60_000
 
 /** module_url of each of our panels, read over the WebSocket API (there is no REST endpoint for panels) */
 function panelUrls() {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(base.replace(/^http/, 'ws') + '/api/websocket')
-    const timer = setTimeout(() => { ws.close(); reject(new Error('timeout')) }, 10_000)
-    const done = (fn, value) => { clearTimeout(timer); ws.close(); fn(value) }
+    let settled = false
+    // Runs once, and drops the handlers before closing: closing a socket that failed to connect fires
+    // "error" again synchronously, which used to call done → close → error… until the stack overflowed
+    const done = (fn, value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      ws.onerror = ws.onmessage = null
+      try { ws.close() } catch { /* already failed */ }
+      fn(value)
+    }
+    const timer = setTimeout(() => done(reject, new Error('timeout')), 10_000)
     ws.onerror = () => done(reject, new Error('websocket'))
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data)
@@ -40,9 +51,10 @@ function panelUrls() {
 process.exitCode = await (async () => {
   // 1. Never restart into a broken configuration.yaml: HA would come back in safe mode
   const res = await fetch(`${base}/api/config/core/check_config`, { method: 'POST', headers, signal: AbortSignal.timeout(90_000) })
+    .catch((e) => ({ ok: false, status: e.message }))
   const check = res.ok ? await res.json() : null
   if (check?.result !== 'valid') {
-    console.error(`No se reinicia HA: check_config ${res.ok ? `inválido: ${check?.errors}` : `HTTP ${res.status}`}`)
+    console.error(`No se reinicia HA: check_config ${res.ok ? `inválido: ${check?.errors}` : `falló (${res.status})`}`)
     return 1
   }
   console.log('OK: configuración válida')
