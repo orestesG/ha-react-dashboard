@@ -170,7 +170,7 @@ function DeviceControl({ device }: { device: Device }) {
   switch (domain) {
     case "light":        return <LightTile entityId={device.entityId} name={device.name} />;
     case "cover":        return <CoverTile entityId={device.entityId} name={device.name} />;
-    case "climate":      return <ClimateCard entityId={device.entityId} name={device.name} consoleEntityId={device.consoleEntityId} />;
+    case "climate":      return <ClimateCard entityId={device.entityId} name={device.name} displayScriptId={device.displayScriptId} displayOffEntityId={device.displayOffEntityId} />;
     case "media_player": return <MediaPlayerCard entityId={device.entityId} name={device.name} />;
     case "vacuum":       return <VacuumQuick entityId={device.entityId} />;
     default:

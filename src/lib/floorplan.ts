@@ -112,8 +112,9 @@ export interface Device {
   lightsRoom?: boolean
   /** Second entity to show (e.g. humidity next to the temperature) */
   secondaryEntityId?: string
-  /** input_boolean of an air conditioner's console light (see ClimateCard) */
-  consoleEntityId?: string
+  /** script that flips an air conditioner's display light, and the input_boolean that remembers it is off (see ClimateCard) */
+  displayScriptId?: string
+  displayOffEntityId?: string
 }
 
 /** Where the front of a piece of furniture looks, in plan axes */
