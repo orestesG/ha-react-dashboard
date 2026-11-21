@@ -3,13 +3,15 @@ import { useShallow } from "zustand/react/shallow";
 import type { HassEntity } from "home-assistant-js-websocket";
 import {
   Activity, AirVent, Blinds, Bot, Box, Droplets, Heater, Home, Layers2, Lightbulb, Play, Pause,
-  Plug, Projector, Speaker, Tag, Thermometer, WashingMachine, X,
+  Plug, Projector, Speaker, Tag, Thermometer, WashingMachine, X, ZoomOut,
   type LucideIcon,
 } from "lucide-react";
 import { useHAStore } from "../../store/ha-store";
 import { useEntity } from "../../hooks/useEntity";
+import { usePanZoom } from "../../hooks/usePanZoom";
 import { callService } from "../../lib/ha-client";
 import { centroid, coverOpenFraction, isActive, isUnavailable, vacuumToPlan, type Device, type DeviceKind, type Pt } from "../../lib/floorplan";
+import { IDENTITY, containRect, type View } from "../../lib/pan-zoom";
 import { VACUUM_DEVICE_ID, VACUUM_MAP_CAMERA_ENTITY, devices, rooms, vacuumTransform } from "../../floorplan.config";
 import { FloorplanScene, STILL, WARM_WHITE, deviceHeight, projectStill, type SceneState, type ViewMode } from "./floorplan/FloorplanScene";
 import { StillView, type StillLight } from "./floorplan/StillView";
@@ -35,6 +37,8 @@ const KIND_ACTIVE_CLASS: Record<DeviceKind, string> = {
 };
 
 const SCENE_ENTITY_IDS = [...new Set([...devices.map((d) => d.entityId), VACUUM_MAP_CAMERA_ENTITY])];
+/** How far the still view zooms in: at ×4 a phone shows it near its 1600 px */
+const MAX_STILL_ZOOM = 4;
 
 interface Position { x: number; y: number; a?: number }
 
@@ -188,6 +192,10 @@ function DeviceControl({ device }: { device: Device }) {
 /** `headerStart`: rendered before the title (the panel puts HA's menu button there) */
 export function FloorplanCard({ headerStart }: { headerStart?: ReactNode } = {}) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const stillLayerRef = useRef<HTMLDivElement>(null);
+  /** Zoom of the still view (the live scene has its own camera) */
+  const stillViewRef = useRef<View>(IDENTITY);
   const sceneRef = useRef<FloorplanScene | null>(null);
   const markerEls = useRef(new Map<string, HTMLElement>());
   const roomEls = useRef(new Map<string, HTMLElement>());
@@ -212,13 +220,13 @@ export function FloorplanCard({ headerStart }: { headerStart?: ReactNode } = {})
     const scene = sceneRef.current;
     const host = hostRef.current;
     if (!host || (live && !scene)) return;
-    // The still is drawn "contain" inside the host
-    const k = Math.min(host.clientWidth / STILL.width, host.clientHeight / STILL.height);
-    const ox = (host.clientWidth - STILL.width * k) / 2, oy = (host.clientHeight - STILL.height * k) / 2;
+    // The still is drawn "contain" inside the host, then zoomed
+    const img = containRect(host.clientWidth, host.clientHeight, STILL.width, STILL.height);
+    const { s, x: tx, y: ty } = stillViewRef.current;
     const project = (pos: Pt, h: number) => {
       if (scene) return scene.project(pos, h);
       const { u, v } = projectStill(pos, h);
-      return { x: ox + u * STILL.width * k, y: oy + v * STILL.height * k };
+      return { x: tx + s * (img.x + u * img.w), y: ty + s * (img.y + v * img.h) };
     };
     const place = (el: HTMLElement | undefined, pos: Pt, h: number) => {
       if (!el) return;
@@ -233,15 +241,19 @@ export function FloorplanCard({ headerStart }: { headerStart?: ReactNode } = {})
     for (const r of rooms) place(roomEls.current.get(r.id), centroid(r.points), 0);
   }, [live]);
 
+  // Still view: pinch, drag, wheel or double tap zoom the image and the markers move with it
+  const applyStillView = useCallback((v: View) => {
+    if (stillLayerRef.current) stillLayerRef.current.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
+    placeMarkers();
+  }, [placeMarkers]);
+  const stillZoom = usePanZoom(viewportRef, stillViewRef, {
+    enabled: !live, width: STILL.width, height: STILL.height, maxZoom: MAX_STILL_ZOOM, onChange: applyStillView,
+  });
+
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
-    if (!live || !webgl) {
-      // Still view: the markers only move when the card is resized
-      const ro = new ResizeObserver(placeMarkers);
-      ro.observe(host);
-      return () => ro.disconnect();
-    }
+    // The still view's markers are placed by usePanZoom (on zoom and on resize)
+    if (!host || !live || !webgl) return;
     const scene = new FloorplanScene(host, night, placeMarkers);
     sceneRef.current = scene;
     // Dev: `await __floorplanScene.exportGLB()` feeds scripts/render_floorplan.py
@@ -307,28 +319,46 @@ export function FloorplanCard({ headerStart }: { headerStart?: ReactNode } = {})
         style={night ? { background: "radial-gradient(circle at 50% 45%, #1e293b 0%, #0b1120 75%)" } : undefined}
       >
         <div ref={hostRef} className="absolute inset-0" />
-        {!live && <StillView night={night} lights={stillLights} />}
+        {/* Takes the still view's gestures; with the live scene it lets them through to the canvas */}
+        <div ref={viewportRef} className={`absolute inset-0 overflow-hidden select-none ${live ? "pointer-events-none" : "touch-none"}`}>
+          {!live && (
+            <div ref={stillLayerRef} className="absolute inset-0 origin-top-left">
+              <StillView night={night} lights={stillLights} />
+            </div>
+          )}
 
-        {live && !webgl ? (
-          <div className="absolute inset-0 flex items-center justify-center text-text-secondary text-sm">
-            Este navegador no soporta WebGL
-          </div>
-        ) : (
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {rooms.map((r) => (
-              <span
-                key={r.id}
-                ref={(el) => { if (el) roomEls.current.set(r.id, el); else roomEls.current.delete(r.id); }}
-                className="absolute left-0 top-0 px-1.5 py-0.5 rounded-md bg-bg-secondary border border-border-main text-[11px] font-semibold uppercase tracking-wide text-text-secondary select-none"
-                style={{ visibility: "hidden" }}
-              >
-                {r.name}
-              </span>
-            ))}
-            {devices.map((d) => (
-              <DeviceMarker key={d.id} device={d} selected={d.id === selectedId} showLabel={showLabels} onSelect={onSelect} register={register} />
-            ))}
-          </div>
+          {live && !webgl ? (
+            <div className="absolute inset-0 flex items-center justify-center text-text-secondary text-sm">
+              Este navegador no soporta WebGL
+            </div>
+          ) : (
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {rooms.map((r) => (
+                <span
+                  key={r.id}
+                  ref={(el) => { if (el) roomEls.current.set(r.id, el); else roomEls.current.delete(r.id); }}
+                  className="absolute left-0 top-0 px-1.5 py-0.5 rounded-md bg-bg-secondary border border-border-main text-[11px] font-semibold uppercase tracking-wide text-text-secondary select-none"
+                  style={{ visibility: "hidden" }}
+                >
+                  {r.name}
+                </span>
+              ))}
+              {devices.map((d) => (
+                <DeviceMarker key={d.id} device={d} selected={d.id === selectedId} showLabel={showLabels} onSelect={onSelect} register={register} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!live && stillZoom.zoomed && (
+          <button
+            type="button"
+            onClick={stillZoom.reset}
+            title="Ver el plano entero"
+            className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border bg-bg-secondary border-border-main text-text-secondary hover:text-text-primary shadow-md transition-colors active:scale-95"
+          >
+            <ZoomOut size={14} />Ajustar
+          </button>
         )}
 
         {selected && (
