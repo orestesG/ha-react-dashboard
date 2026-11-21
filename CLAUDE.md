@@ -30,7 +30,7 @@ Dashboard personalizado para Home Assistant, construido en React + TypeScript. F
 
 ### Panel HA (`npm run build:panel`)
 - Entry: `src/panel-main.ts` → `src/panel-element.ts` → `App.tsx`
-- Emite un único `dist/main.js` (no code-splitting)
+- Emite un único `dist/main.js` (no code-splitting) y, en un segundo build (`PANEL=plano`), `dist/plano.js`: el panel aparte del Plano 3D (`src/plano-main.ts` → `PlanoApp.tsx`), para que three.js, texturas y renders no carguen con el dashboard. Ambos usan `panel-element.ts`; cada entry fija `MiDashboardPanel.view`
 - `VITE_BUILD_PANEL=true` activa en `vite.config.ts`:
   - `cssInjectedByJs`: bundlea el CSS en el JS; guarda el string en `window.__dashCss`
   - `define`: shimea `process` y `process.env.NODE_ENV` (ausentes en browser)
@@ -50,6 +50,8 @@ Dashboard personalizado para Home Assistant, construido en React + TypeScript. F
 src/
 ├── main.tsx                    # Entry dev — dark mode por OS, renderiza <App>
 ├── panel-main.ts               # Entry panel — importa index.css + registra custom element
+├── plano-main.ts               # Entry del panel Plano 3D (`mi-plano` → dist/plano.js); en dev: plano.html → plano.tsx
+├── PlanoApp.tsx                # Shell del panel Plano 3D: solo <FloorplanCard> a pantalla completa
 ├── panel-element.ts            # Custom element MiDashboardPanel — shadow DOM injection
 ├── App.tsx                     # Shell — header, ResponsiveGridLayout, conexión
 ├── index.css                   # Tailwind + CSS variables light/dark + resize handles
@@ -212,9 +214,10 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 - El dashboard provisiona `script.mi_dashboard_limpieza_robot` y reescribe la automatización `automation.limpieza_robot_schedule` (REST `/api/config/...`, solo si cambiaron). "Solo aspirado" pasa por el script para que HA restaure los modos por habitación al volver a la base.
 - El robot también tiene horarios nativos de la app (atributo `schedule` del vacuum) que corren independientes de HA.
 
-### Plano 3D (pestaña `plano`, card `floorplan`)
+### Plano 3D (panel aparte `mi-plano`, `dist/plano.js`)
+- Es otra entrada del menú lateral de HA, no una pestaña del dashboard: HA solo baja `plano.js` al abrir ese panel. En dev: `http://localhost:5173/plano.html`.
 - Por defecto la card muestra una **vista fija pre-renderizada** (`floorplan/StillView.tsx`, sin WebGL): una imagen base de día o de noche (según `sun.sun`; si no existe, según el tema) más una imagen por lámpara con solo lo que esa lámpara aporta, que se tiñe con su color y se suma en un canvas 2D. Los marcadores se ubican con `projectStill` (la misma cámara, `STILL`). El 3D interactivo (three.js) solo se crea al pulsar el botón **3D** (o con `?plano3d` en la URL) y se destruye al apagarlo. Persianas, cortinas y robot solo se mueven en el 3D.
-- Las imágenes de `floorplan/still/` las renderiza Blender (Cycles) a partir del mismo modelo: en dev, con el 3D activo, `await __floorplanScene.exportGLB()` devuelve el GLB (cámara fija y lámparas con nombre incluidas) y `blender --background --factory-startup --python scripts/render_floorplan.py -- <glb> src/components/widgets/floorplan/still` genera `day.webp`, `night.webp` y `light-<device>.jpg`. **Hay que regenerarlas cada vez que cambie la geometría, los muebles, las texturas o la posición de una luz.**
+- Las imágenes de `floorplan/still/` las renderiza Blender (Cycles) a partir del mismo modelo: en dev, con el 3D activo (`/plano.html?plano3d`), `await __floorplanScene.exportGLB()` devuelve el GLB (cámara fija y lámparas con nombre incluidas) y `blender --background --factory-startup --python scripts/render_floorplan.py -- <glb> src/components/widgets/floorplan/still` genera `day.webp`, `night.webp` y `light-<device>.jpg`. **Hay que regenerarlas cada vez que cambie la geometría, los muebles, las texturas o la posición de una luz.**
 - Geometría en `src/floorplan.config.ts`, en metros: `x` a lo ancho, `y` a lo largo (0 = fondo del cuarto principal). El perímetro sale del plano de mensura; los tabiques, del mapa del robot. El archivo es personal (IDs de entidades y medidas reales) y está en `.gitignore`, igual que `dashboard.config.ts`: se parte de `src/floorplan.config.example.ts`. Los tipos (`Room`, `Device`, `Furniture`, `Cove`) viven en `lib/floorplan.ts`.
 - El mapa del robot muestra el living ~0,8 m más ancho y con una "pata" hacia el pallier: es lidar que ve a través de la puerta/espejo, no piso real. El plano manda.
 - `vacuumTransform` convierte mm del robot → metros del plano (el `x` del robot corre a lo largo del apto). Si se rehace el mapa del robot hay que recalibrar el origen.
@@ -226,7 +229,6 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 - Ventanas: corredizas de dos hojas (`addWindow`); la persiana (`cover` de la abertura) va por fuera y la cortina de tela (`curtain`) por dentro, ambas siguen `current_position`. "Afuera" se deduce como el lado opuesto al centro del apto. El antepecho por defecto es `SILL_HEIGHT`; una abertura puede fijar el suyo con `sill` (el ventanal del balcón cerrado arranca a media altura).
 - Cenefas: lista `coves` en `floorplan.config.ts` (rectángulo exterior, ancho, separación de bombillas). Se dibujan como un anillo semitransparente a la altura del corte de las paredes, con 2 bombillas por lado; reemplazan al objeto del dispositivo indicado en `deviceId`. Las bombillas no generan sombras (serían 8 shadow maps). Cada bombilla que tiene una pared maciza al lado dibuja sobre ella un bañado de luz (plano aditivo con textura de abanico, `buildWallWash`); en puertas, ventanas y el lado abierto no hay bañado.
 - Muebles decorativos: lista `furniture` en `floorplan.config.ts` (`kind`, `pos` = centro, `facing` = hacia dónde mira el frente, `size` opcional); las formas están en `floorplan/furniture.ts`.
-- Pestañas nuevas en `DEFAULT_TABS` se agregan al layout guardado con `withNewDefaultTabs` (no hace falta subir `TABS_VERSION`).
 
 ### Forecast del tiempo (API HA)
 - `weather.get_forecasts` requiere `return_response: true` en el mensaje WS; se llama con `conn.sendMessagePromise()` ya que la librería no tiene un wrapper tipado para esto
@@ -246,7 +248,7 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 ```bash
 npm run dev           # Servidor de desarrollo (HMR)
 npm run build         # Build web estándar
-npm run build:panel   # Build del custom panel → dist/main.js
+npm run build:panel   # Build de los custom panels → dist/main.js + dist/plano.js
 npm run lint          # ESLint
 npm run test          # Vitest (run once)
 npm run test:watch    # Vitest (watch)
@@ -254,8 +256,8 @@ npm run test:watch    # Vitest (watch)
 
 ## Despliegue del panel en HA
 
-1. `npm run build:panel` → genera `dist/main.js`
-2. Copiar `dist/main.js` a `<HA config>/www/mi-dashboard/main.js`
+1. `npm run build:panel` → genera `dist/main.js` y `dist/plano.js`
+2. Copiar ambos a `<HA config>/www/mi-dashboard/` (el workflow `deploy-panel.yml` lo hace al mergear a `main` y versiona cada `module_url` con `?v=<sha>`)
 3. En `configuration.yaml`:
    ```yaml
    panel_custom:
@@ -264,5 +266,10 @@ npm run test:watch    # Vitest (watch)
        sidebar_title: Dashboard
        sidebar_icon: mdi:view-dashboard
        js_url: /local/mi-dashboard/main.js
+     - name: mi-plano
+       url_path: mi-plano
+       sidebar_title: Plano 3D
+       sidebar_icon: mdi:floor-plan
+       module_url: /local/mi-dashboard/plano.js
    ```
 4. Reiniciar HA o hacer "Check & Restart"

@@ -9,7 +9,7 @@
     "test:ui": "vitest --ui",
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:panel": "tsc -b && cross-env VITE_BUILD_PANEL=true vite build",
+    "build:panel": "tsc -b && cross-env VITE_BUILD_PANEL=true vite build && cross-env VITE_BUILD_PANEL=true PANEL=plano vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
