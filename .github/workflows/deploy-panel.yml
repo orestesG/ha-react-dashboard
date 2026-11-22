@@ -68,8 +68,9 @@ jobs:
             echo "WARN: usando dashboard.config.example.ts (secret DASHBOARD_CONFIG_B64 no configurado)"
           fi
 
-      - name: Build panel
-        run: npm run build:panel
+      # Public repo, public logs: with the real configs a build error could quote their values
+      - name: Build panel (salida oculta)
+        run: node scripts/quiet-build.mjs
 
       # ── Deploy a HA: Windows runner (net use + PowerShell file I/O) ────────
       - name: Copy to HA and version module_url (Windows)
