@@ -312,6 +312,9 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
   const refreshKey = useDailyRefresh(7);
   const dailyForecast = useWeatherForecast(entityId, "daily", refreshKey);
   const hourlyForecast = useWeatherForecast(entityId, "hourly", refreshKey);
+  // Before the loading return: hooks must run on every render
+  const toggleWeather = useCollapseStore((s) => s.toggle);
+  const weatherCollapsed = useCollapseStore((s) => s.isCollapsed('weather'));
 
   if (loading) {
     return (
@@ -365,9 +368,6 @@ export function WeatherWidget({ entityId = "weather.forecast_home" }: WeatherWid
   const highLabel = todayDaily?.temperature !== undefined ? `Máx. ${Math.round(todayDaily.temperature)}°` : "";
   const lowLabel = todayDaily?.templow !== undefined ? `Mín. ${Math.round(todayDaily.templow)}°` : "";
   const summary = [condLabel, [highLabel, lowLabel].filter(Boolean).join(" / ")].filter(Boolean).join(". ");
-
-  const toggleWeather = useCollapseStore((s) => s.toggle);
-  const weatherCollapsed = useCollapseStore((s) => s.isCollapsed('weather'));
 
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">

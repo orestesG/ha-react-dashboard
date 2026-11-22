@@ -1,54 +1,57 @@
 name: Deploy Panel to Home Assistant
 
+# Compila los paneles, los copia a HA y reinicia HA (panel_custom solo lee module_url al arrancar).
+# Corre en el runner propio (VM 103), que llega a la red de HA. Solo con push a main o a mano: nunca con PRs.
 on:
   push:
     branches: [main]
+    # Solo lo que cambia los paneles compilados o cómo se despliegan: un merge de docs no reinicia HA
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - 'tailwind.config.js'
+      - 'postcss.config.js'
+      - 'scripts/quiet-build.mjs'
+      - 'scripts/ha-restart.mjs'
+      - '.github/workflows/deploy-panel.yml'
+  # A mano (Actions → Run workflow) siempre copia y reinicia, aunque el build no haya cambiado
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un deploy a la vez: dos merges seguidos copiarían y reiniciarían HA al mismo tiempo.
+# El segundo espera (no se cancela: trae el build más nuevo).
+concurrency:
+  group: deploy-panel
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
+      # Fijadas a un commit: corren en la VM con los secrets. Dependabot propone las actualizaciones.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
 
       - name: Install dependencies
         run: npm ci
 
-      # ── Dashboard config: Windows runner (copia desde path local) ──────────
-      - name: Copy dashboard config (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $src = "D:\HAReactDash-style-fixes\src\dashboard.config.ts"
-          if (Test-Path $src) {
-            Copy-Item $src "src\dashboard.config.ts" -Force
-            Write-Host "OK: dashboard.config.ts copiado"
-          } else {
-            Copy-Item "src\dashboard.config.example.ts" "src\dashboard.config.ts" -Force
-            Write-Host "WARN: usando dashboard.config.example.ts"
-          }
-          $src = "D:\HAReactDash-style-fixes\src\floorplan.config.ts"
-          if (Test-Path $src) {
-            Copy-Item $src "src\floorplan.config.ts" -Force
-            Write-Host "OK: floorplan.config.ts copiado"
-          } else {
-            Copy-Item "src\floorplan.config.example.ts" "src\floorplan.config.ts" -Force
-            Write-Host "WARN: usando floorplan.config.example.ts"
-          }
-
-      # ── Dashboard config: Linux/Docker runner (desde secret base64) ────────
-      - name: Copy dashboard config (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
+      - name: Restaurar las configs reales
         env:
           DASHBOARD_CONFIG_B64: ${{ secrets.DASHBOARD_CONFIG_B64 }}
           FLOORPLAN_CONFIG_B64: ${{ secrets.FLOORPLAN_CONFIG_B64 }}
@@ -68,79 +71,71 @@ jobs:
             echo "WARN: usando dashboard.config.example.ts (secret DASHBOARD_CONFIG_B64 no configurado)"
           fi
 
-      # Public repo, public logs: with the real configs a build error could quote their values
+      # Repo público, logs públicos: con las configs reales un error del build podría citar sus valores
       - name: Build panel (salida oculta)
         run: node scripts/quiet-build.mjs
 
-      # ── Deploy a HA: Windows runner (net use + PowerShell file I/O) ────────
-      - name: Copy to HA and version module_url (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
+      # Si main.js y plano.js son idénticos byte a byte a los que ya sirve HA, no hay nada que copiar ni
+      # reiniciar (pasa con cambios de tests, comentarios o dependencias de desarrollo). El build es determinista.
+      - name: Comparar con lo desplegado
+        id: compare
         env:
-          HA_WWW:      ${{ vars.HA_WWW_PATH }}
-          SAMBA_USER:  ${{ secrets.SAMBA_USER }}
-          SAMBA_PASS:  ${{ secrets.SAMBA_PASS }}
-        run: |
-          $dest = $env:HA_WWW
-          if (-not $dest) { throw "Variable HA_WWW_PATH no configurada (Settings > Variables)" }
-          $share = ($dest -split '\\' | Select-Object -First 4) -join '\'
-          net use $share $env:SAMBA_PASS /user:$env:SAMBA_USER /persistent:no | Out-Null
-
-          if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
-          Copy-Item dist\main.js "$dest\main.js" -Force
-          Copy-Item dist\plano.js "$dest\plano.js" -Force
-          Write-Host "OK: main.js y plano.js copiados"
-
-          $sha     = $env:GITHUB_SHA.Substring(0, 7)
-          $cfgPath = "$share\configuration.yaml"
-          $utf8    = [System.Text.UTF8Encoding]::new($false)
-          $content = [System.IO.File]::ReadAllText($cfgPath, $utf8)
-          $updated = $content -replace 'module_url: /local/mi-dashboard/(main|plano)\.js(\?v=[a-f0-9]+)?', ('module_url: /local/mi-dashboard/$1.js?v=' + $sha)
-          [System.IO.File]::WriteAllText($cfgPath, $updated, $utf8)
-          Write-Host "OK: module_url actualizado a ?v=$sha"
-
-          net use $share /delete | Out-Null
-
-      # ── Deploy a HA: Linux/Docker runner (smbclient) ───────────────────────
-      - name: Copy to HA and version module_url (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          HA_WWW:       ${{ vars.HA_WWW_PATH }}
+          HA_WWW:        ${{ vars.HA_WWW_PATH }}
           HA_SAMBA_HOST: ${{ secrets.HA_SAMBA_HOST }}
-          SAMBA_USER:   ${{ secrets.SAMBA_USER }}
-          SAMBA_PASS:   ${{ secrets.SAMBA_PASS }}
+          SAMBA_USER:    ${{ secrets.SAMBA_USER }}
+          SAMBA_PASS:    ${{ secrets.SAMBA_PASS }}
         run: |
-          # Extraer share y subdirectorio del UNC path (el host se sobreescribe con HA_SAMBA_HOST)
+          # Share y subdirectorio del UNC path (el host se reemplaza por HA_SAMBA_HOST: NetBIOS no resuelve en Linux)
           LINUX_PATH=$(echo "$HA_WWW" | tr '\\' '/')
-          HA_SHARE=$(echo "$LINUX_PATH" | cut -d'/' -f4)
-          HA_SUBDIR=$(echo "$LINUX_PATH" | cut -d'/' -f5-)
-
-          # Usar IP directa para evitar problemas de resolución NetBIOS en Linux
           HOST="$HA_SAMBA_HOST"
           if [ -z "$HOST" ]; then HOST=$(echo "$LINUX_PATH" | cut -d'/' -f3); fi
+          SMB_SHARE="//$HOST/$(echo "$LINUX_PATH" | cut -d'/' -f4)"
+          HA_SUBDIR=$(echo "$LINUX_PATH" | cut -d'/' -f5-)
+          echo "SMB_SHARE=$SMB_SHARE" >> "$GITHUB_ENV"
+          echo "HA_SUBDIR=$HA_SUBDIR" >> "$GITHUB_ENV"
 
-          # Copiar main.js via smbclient
-          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Corrida a mano: se copia y se reinicia siempre"
+            exit 0
+          fi
+          DEPLOYED="$RUNNER_TEMP/deployed"
+          rm -rf "$DEPLOYED" && mkdir -p "$DEPLOYED"
+          smbclient "$SMB_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+            -c "get $HA_SUBDIR/main.js $DEPLOYED/main.js; get $HA_SUBDIR/plano.js $DEPLOYED/plano.js" >/dev/null 2>&1 || true
+          if [ -s "$DEPLOYED/main.js" ] && [ -s "$DEPLOYED/plano.js" ] \
+             && cmp -s dist/main.js "$DEPLOYED/main.js" && cmp -s dist/plano.js "$DEPLOYED/plano.js"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Sin cambios: main.js y plano.js son idénticos a los de HA; no se copia ni se reinicia"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "El build cambió: se copia y se reinicia"
+          fi
+
+      - name: Copiar a HA y versionar module_url
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          SAMBA_USER: ${{ secrets.SAMBA_USER }}
+          SAMBA_PASS: ${{ secrets.SAMBA_PASS }}
+        run: |
+          smbclient "$SMB_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "mkdir $HA_SUBDIR; put dist/main.js $HA_SUBDIR/main.js; put dist/plano.js $HA_SUBDIR/plano.js" 2>/dev/null || \
-          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
+          smbclient "$SMB_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
             -c "put dist/main.js $HA_SUBDIR/main.js; put dist/plano.js $HA_SUBDIR/plano.js"
           echo "OK: main.js y plano.js copiados"
 
           # Descargar, parchear y subir configuration.yaml
-          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
-            -c "get configuration.yaml /tmp/configuration.yaml"
+          CONFIG="$RUNNER_TEMP/configuration.yaml"
+          smbclient "$SMB_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" -c "get configuration.yaml $CONFIG"
           SHA="${GITHUB_SHA:0:7}"
-          sed -E -i "s#module_url: /local/mi-dashboard/(main|plano)\.js(\?v=[a-f0-9]+)?#module_url: /local/mi-dashboard/\1.js?v=${SHA}#" \
-            /tmp/configuration.yaml
-          smbclient "//$HOST/$HA_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" \
-            -c "put /tmp/configuration.yaml configuration.yaml"
+          sed -E -i "s#module_url: /local/mi-dashboard/(main|plano)\.js(\?v=[a-f0-9]+)?#module_url: /local/mi-dashboard/\1.js?v=${SHA}#" "$CONFIG"
+          smbclient "$SMB_SHARE" -U "$SAMBA_USER%$SAMBA_PASS" -c "put $CONFIG configuration.yaml"
           echo "OK: module_url actualizado a ?v=$SHA"
 
-      # ── Restart HA (both runners) ──────────────────────────────────────────
-      # panel_custom only reads module_url at startup: without a restart the apps keep the old
-      # ?v= and their cached build. Checks the config first; doesn't wait for HA to come back.
+      # panel_custom solo lee module_url al arrancar: sin reinicio las apps siguen con el ?v= viejo y su build en
+      # caché. Valida la config antes; no espera a que HA vuelva.
       - name: Restart HA
+        if: steps.compare.outputs.changed == 'true'
         env:
           HA_URL:   ${{ secrets.HA_URL }}
           HA_TOKEN: ${{ secrets.HA_TOKEN }}

@@ -1,0 +1,48 @@
+name: CI
+
+# Lint, tests y build de los paneles en cada PR, con las configs de ejemplo (sin secrets).
+# En los runners de GitHub, nunca en el propio: ejecuta el código del PR, que puede venir del fork de cualquiera.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, tests y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configs de ejemplo
+        run: |
+          cp src/dashboard.config.example.ts src/dashboard.config.ts
+          cp src/floorplan.config.example.ts src/floorplan.config.ts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Build panel
+        run: npm run build:panel

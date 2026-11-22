@@ -259,7 +259,7 @@ npm run dev           # Servidor de desarrollo (HMR)
 npm run build         # Build web estándar
 npm run build:panel   # Build de los custom panels → dist/main.js + dist/plano.js
 npm run lint          # ESLint
-npm run test          # Vitest (run once)
+npm run test          # Vitest (run once; solo src/**, ver test.include en vite.config.ts)
 npm run test:watch    # Vitest (watch)
 ```
 
@@ -281,5 +281,12 @@ npm run test:watch    # Vitest (watch)
        sidebar_icon: mdi:floor-plan
        module_url: /local/mi-dashboard/plano.js
    ```
-4. Logs públicos: el repo es público y cualquiera lee los logs de Actions. Con las configs reales, un error de `tsc`/`vite` puede citar IDs de entidades, así que el deploy y el check de PR `config-check.yml` ("Build con las configs reales", en `ubuntu-latest`, solo PRs del mismo repo y no de Dependabot) compilan con `scripts/quiet-build.mjs`: muestra solo archivo, línea y código de cada error de TypeScript, y los tamaños si pasa. El mensaje completo se ve corriendo `npm run build:panel` localmente. Dependabot (`.github/dependabot.yml`) abre PRs semanales (menores y parches agrupados, mayores de a una) y las de seguridad apenas aparecen; nada se mergea solo, porque cada merge reinicia HA.
+4. GitHub (el repo es **público**, igual que sus logs de Actions):
+   - **Checks obligatorios para mergear a `main`**, ambos en `ubuntu-latest` (nunca el runner propio, porque ejecutan el código del PR):
+     - `ci.yml` → "Lint, tests y build": lint, `npm test` y `build:panel` con las configs de ejemplo.
+     - `config-check.yml` → "Build con configs reales": compila con los secrets de las configs. Solo PRs del mismo repo y no de Dependabot (no reciben los secrets): para ellos el job se saltea y cuenta como aprobado.
+   - **Salida oculta**: con las configs reales, un error de `tsc`/`vite` puede citar IDs de entidades. El deploy y `config-check.yml` compilan con `scripts/quiet-build.mjs`, que muestra solo archivo, línea y código de cada error de TypeScript, y los tamaños si pasa. El mensaje completo: `npm run build:panel` localmente.
+   - **Deploy** (`deploy-panel.yml`, runner propio `[self-hosted, Linux]`): solo con push a `main` que toque `src/**`, dependencias, configs de build o los scripts del deploy (un merge de docs no reinicia HA); uno a la vez (`concurrency`); si `main.js` y `plano.js` salen idénticos a los que ya sirve HA (el build es determinista), no copia ni reinicia. Correrlo a mano (Actions → Run workflow) copia y reinicia siempre: sirve si un deploy anterior copió pero no llegó a reiniciar. Las actions están fijadas a un commit (`@<sha> # vX.Y.Z`).
+   - **Dependabot** (`.github/dependabot.yml`): PRs semanales (menores y parches agrupados, mayores de a una) y las de seguridad apenas aparecen. Nada se mergea solo. Si la actualización no cambia los archivos compilados (vitest, eslint, jsdom…), el deploy no copia ni reinicia; las de vite, tailwind o react sí pueden cambiarlos.
+   - **Ajustes del repo** (no están en git): aprobación manual de workflows para PRs de cualquier colaborador externo; CodeQL en modo "default setup" (JS/TS, Python y los workflows, en runners de GitHub); alertas y actualizaciones de seguridad de Dependabot.
 5. Reiniciar HA o hacer "Check & Restart". Un "recargar configuración" no alcanza: `panel_custom` solo lee `module_url` al arrancar, así que sin reinicio HA sigue anunciando el `?v=` viejo y las apps usan su copia en caché (`/local` se sirve con `max-age` de 31 días). Por eso el workflow reinicia: valida la config (`check_config`; si es inválida no reinicia y el job falla) y pide el reinicio, sin esperar a que HA vuelva (puede tardar 6-7 min en arrancar). `HA_TOKEN` tiene que ser de un admin. Para validar sin reiniciar: `DRY_RUN=1 HA_URL=… HA_TOKEN=… node scripts/ha-restart.mjs`

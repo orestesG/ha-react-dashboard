@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build con configs reales
     # Los PR de forks y los de Dependabot no reciben los secrets de Actions: para ellos el job se saltea
     if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     # Un runner de GitHub, nunca el propio: este workflow ejecuta el código del PR
@@ -23,12 +24,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
