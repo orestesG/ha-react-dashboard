@@ -54,6 +54,9 @@ export function EnergyChart({
   const historial = useEntity(historialEntityId);
   const facturacion = useEntity(facturacionEntityId);
   const proxima = useEntity(proximaEntityId);
+  // Before the loading return: hooks must run on every render
+  const toggleEnergy = useCollapseStore((s) => s.toggle);
+  const energyCollapsed = useCollapseStore((s) => s.isCollapsed('energy'));
 
   const entities = [actual, punta, llano, valle, gasto, deuda, historial, facturacion, proxima];
   const loading = entities.some(e => e.loading);
@@ -140,9 +143,6 @@ export function EnergyChart({
       </text>
     );
   };
-
-  const toggleEnergy = useCollapseStore((s) => s.toggle);
-  const energyCollapsed = useCollapseStore((s) => s.isCollapsed('energy'));
 
   return (
     <div className="bg-bg-secondary rounded-2xl p-5 border border-border-main">
@@ -251,7 +251,6 @@ export function EnergyChart({
                     strokeDasharray={d.estimated ? "3 2" : undefined}
                   />
                 ))}
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <LabelList dataKey="amount" content={renderAmountLabel as never} />
               </Bar>
             </BarChart>
