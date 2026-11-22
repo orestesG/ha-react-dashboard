@@ -1,0 +1,24 @@
+# Actualizaciones semanales de dependencias. Cada merge a main despliega y reinicia HA, así que nada se mergea
+# solo: llegan como PR para revisar. Las menores y parches vienen juntas en un PR por ecosistema; las mayores
+# (que pueden romper el build) vienen de a una. Las de seguridad las abre Dependabot aparte, apenas aparecen.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-menores:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']

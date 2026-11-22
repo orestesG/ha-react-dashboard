@@ -1,0 +1,54 @@
+name: Build con las configs reales
+
+# Compila los paneles con las configs personales (secrets DASHBOARD_CONFIG_B64 y FLOORPLAN_CONFIG_B64) antes del
+# merge, para atrapar lo que haría fallar el deploy: por ejemplo, un export nuevo que todavía no está en el secret.
+# El repo es público y cualquiera puede leer estos logs: scripts/quiet-build.mjs oculta la salida del build.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: config-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build con configs reales
+    # Los PR de forks y los de Dependabot no reciben los secrets de Actions: para ellos el job se saltea
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # Un runner de GitHub, nunca el propio: este workflow ejecuta el código del PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restaurar las configs reales
+        env:
+          DASHBOARD_CONFIG_B64: ${{ secrets.DASHBOARD_CONFIG_B64 }}
+          FLOORPLAN_CONFIG_B64: ${{ secrets.FLOORPLAN_CONFIG_B64 }}
+        run: |
+          if [ -z "$DASHBOARD_CONFIG_B64" ] || [ -z "$FLOORPLAN_CONFIG_B64" ]; then
+            echo "::error::Faltan los secrets DASHBOARD_CONFIG_B64 o FLOORPLAN_CONFIG_B64"
+            exit 1
+          fi
+          echo "$DASHBOARD_CONFIG_B64" | base64 -d > src/dashboard.config.ts
+          echo "$FLOORPLAN_CONFIG_B64" | base64 -d > src/floorplan.config.ts
+          echo "OK: configs restauradas"
+
+      - name: Build panel (salida oculta)
+        run: node scripts/quiet-build.mjs

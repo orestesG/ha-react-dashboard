@@ -33,10 +33,10 @@ export async function connectHA(url: string, token: string): Promise<Connection>
   } catch (err) {
     connection = null;
     if (err === ERR_CANNOT_CONNECT) {
-      throw new Error("No se pudo conectar a Home Assistant. Verifica la URL.");
+      throw new Error("No se pudo conectar a Home Assistant. Verifica la URL.", { cause: err });
     }
     if (err === ERR_INVALID_AUTH) {
-      throw new Error("Token inválido. Genera un nuevo long-lived token en HA.");
+      throw new Error("Token inválido. Genera un nuevo long-lived token en HA.", { cause: err });
     }
     throw err;
   }

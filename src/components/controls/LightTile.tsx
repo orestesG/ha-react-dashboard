@@ -70,6 +70,8 @@ export function LightTile({ entityId, name }: LightTileProps) {
         clearTimeout(offDebounceRef.current);
         offDebounceRef.current = null;
       }
+      // Showing at once and hiding after a delay is the point of this effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setControlsVisible(true);
     } else {
       offDebounceRef.current = setTimeout(() => {
@@ -85,6 +87,8 @@ export function LightTile({ entityId, name }: LightTileProps) {
   useEffect(() => {
     // HA sends brightness=null as intermediate state during transitions — ignore it.
     if (brightness != null) {
+      // The slider keeps its own value while dragging; HA's value only replaces it when it's real
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalBrightness(brightness);
     }
   }, [brightness]);

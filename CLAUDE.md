@@ -248,7 +248,7 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 - Días con `days` (0=Lun, como el robot) + `workdayEntityId` (integración Workday, `off` en feriados). Las vacaciones escolares no son feriados: se cargan en las opciones de Workday si hacen falta.
 - El chip del header solo aparece con la persona en casa y en horario de salida (si no, no ocupa lugar). Una ruta suelta va al chip dentro de su `chipHours` y sus `days`/`workdayEntityId` (`routeInChip`); sin `chipHours` queda solo en Detalle. Un viaje que corre hoy ocupa el chip toda su `chipHours` (las rutas no se muestran), pero con hora fija solo se ve desde `leadMin` (60) antes de la salida calculada hasta la `arriveBy` (`inDepartureWindow`): como la salida sigue al tráfico, la ventana también.
 - El chip del viaje muestra cuenta regresiva ("Salir en N min", "Hora de salir", "N min tarde") + "llegás H:MM" + una barra de ahora a la llegada (`tripBar`): hueco = lo que falta para salir, azul = manejo, gris = parada, marca = `arriveBy`; todo en rojo si se llega tarde. "Pronto" es un punto azul que titila: el naranja/amarillo del design system es solo identidad, no estado.
-- `dashboard.config.ts` no está en git: el runner lo toma del secret `DASHBOARD_CONFIG_B64`. Un export nuevo en la config (como `commuteTrips`) requiere actualizar el secret **antes** de mergear, o el build del deploy falla.
+- `dashboard.config.ts` no está en git: el runner lo toma del secret `DASHBOARD_CONFIG_B64`. Un export nuevo en la config (como `commuteTrips`) requiere actualizar el secret **antes** de mergear, o el build del deploy falla. El check "Build con las configs reales" del PR lo avisa.
 
 ---
 
@@ -259,7 +259,7 @@ npm run dev           # Servidor de desarrollo (HMR)
 npm run build         # Build web estándar
 npm run build:panel   # Build de los custom panels → dist/main.js + dist/plano.js
 npm run lint          # ESLint
-npm run test          # Vitest (run once)
+npm run test          # Vitest (run once; solo src/**, ver test.include en vite.config.ts)
 npm run test:watch    # Vitest (watch)
 ```
 
@@ -281,4 +281,12 @@ npm run test:watch    # Vitest (watch)
        sidebar_icon: mdi:floor-plan
        module_url: /local/mi-dashboard/plano.js
    ```
-4. Reiniciar HA o hacer "Check & Restart". Un "recargar configuración" no alcanza: `panel_custom` solo lee `module_url` al arrancar, así que sin reinicio HA sigue anunciando el `?v=` viejo y las apps usan su copia en caché (`/local` se sirve con `max-age` de 31 días). Por eso el workflow reinicia: valida la config (`check_config`; si es inválida no reinicia y el job falla) y pide el reinicio, sin esperar a que HA vuelva (puede tardar 6-7 min en arrancar). `HA_TOKEN` tiene que ser de un admin. Para validar sin reiniciar: `DRY_RUN=1 HA_URL=… HA_TOKEN=… node scripts/ha-restart.mjs`
+4. GitHub (el repo es **público**, igual que sus logs de Actions):
+   - **Checks obligatorios para mergear a `main`**, ambos en `ubuntu-latest` (nunca el runner propio, porque ejecutan el código del PR):
+     - `ci.yml` → "Lint, tests y build": lint, `npm test` y `build:panel` con las configs de ejemplo.
+     - `config-check.yml` → "Build con configs reales": compila con los secrets de las configs. Solo PRs del mismo repo y no de Dependabot (no reciben los secrets): para ellos el job se saltea y cuenta como aprobado.
+   - **Salida oculta**: con las configs reales, un error de `tsc`/`vite` puede citar IDs de entidades. El deploy y `config-check.yml` compilan con `scripts/quiet-build.mjs`, que muestra solo archivo, línea y código de cada error de TypeScript, y los tamaños si pasa. El mensaje completo: `npm run build:panel` localmente.
+   - **Deploy** (`deploy-panel.yml`, runner propio `[self-hosted, Linux]`): solo con push a `main` que toque `src/**`, dependencias, configs de build o los scripts del deploy (un merge de docs no reinicia HA); uno a la vez (`concurrency`); si `main.js` y `plano.js` salen idénticos a los que ya sirve HA (el build es determinista), no copia ni reinicia. Correrlo a mano (Actions → Run workflow) copia y reinicia siempre: sirve si un deploy anterior copió pero no llegó a reiniciar. Las actions están fijadas a un commit (`@<sha> # vX.Y.Z`).
+   - **Dependabot** (`.github/dependabot.yml`): PRs semanales (menores y parches agrupados, mayores de a una) y las de seguridad apenas aparecen. Nada se mergea solo. Si la actualización no cambia los archivos compilados (vitest, eslint, jsdom…), el deploy no copia ni reinicia; las de vite, tailwind o react sí pueden cambiarlos.
+   - **Ajustes del repo** (no están en git): aprobación manual de workflows para PRs de cualquier colaborador externo; CodeQL en modo "default setup" (JS/TS, Python y los workflows, en runners de GitHub); alertas y actualizaciones de seguridad de Dependabot.
+5. Reiniciar HA o hacer "Check & Restart". Un "recargar configuración" no alcanza: `panel_custom` solo lee `module_url` al arrancar, así que sin reinicio HA sigue anunciando el `?v=` viejo y las apps usan su copia en caché (`/local` se sirve con `max-age` de 31 días). Por eso el workflow reinicia: valida la config (`check_config`; si es inválida no reinicia y el job falla) y pide el reinicio, sin esperar a que HA vuelva (puede tardar 6-7 min en arrancar). `HA_TOKEN` tiene que ser de un admin. Para validar sin reiniciar: `DRY_RUN=1 HA_URL=… HA_TOKEN=… node scripts/ha-restart.mjs`

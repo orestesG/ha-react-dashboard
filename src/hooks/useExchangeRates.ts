@@ -65,6 +65,8 @@ export function useExchangeRates(): ExchangeRates {
   }, [])
 
   useEffect(() => {
+    // Fetch on mount and then every REFRESH_INTERVAL_MS (fetchAll sets `loading` first)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll()
     timerRef.current = setInterval(fetchAll, REFRESH_INTERVAL_MS)
     return () => {
