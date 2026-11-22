@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import cssInjectedByJs from 'vite-plugin-css-injected-by-js'
@@ -28,6 +29,10 @@ export default defineConfig({
       `,
     })] : []),
   ],
+  // Only the project's tests: a local actions-runner/ folder (gitignored) also has *.test.* files
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
   ...(isPanel && {
     define: {
       'process.env.NODE_ENV': '"production"',
