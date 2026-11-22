@@ -64,7 +64,8 @@ src/
 │   ├── ha-client.ts            # Conexión WS, subscribeEntities, callService, fetchAllStates, callRestAPI
 │   ├── ha-types.ts             # Interfaces tipadas: LightEntity, CoverEntity, ClimateEntity…
 │   ├── vacuum.ts               # Lógica pura del robot Dreame: opciones, slots→schedule, config de script/automatización (tests en vacuum.test.ts)
-│   └── floorplan.ts            # Lógica pura del plano 3D: cortar paredes en tramos/aberturas, robot→plano, estado activo (tests en floorplan.test.ts)
+│   ├── floorplan.ts            # Lógica pura del plano 3D: cortar paredes en tramos/aberturas, robot→plano, estado activo (tests en floorplan.test.ts)
+│   └── pan-zoom.ts             # Matemática del zoom de la vista fija: rect "contain", zoom alrededor de un punto, límites (tests en pan-zoom.test.ts)
 │
 ├── store/
 │   ├── ha-store.ts             # Zustand: connection, entities, isConnected, error, entityCount
@@ -76,6 +77,7 @@ src/
 │   ├── useEntity.ts            # Lee entidad del store; expone state, attributes, isOn, toggle…
 │   ├── useNow.ts               # Hora actual refrescada cada 30 s (cuentas regresivas)
 │   ├── useTripPlan.ts          # Sensores de un viaje con paradas → plan (salida, llegadas, si corre hoy)
+│   ├── usePanZoom.ts           # Pellizco/arrastre/rueda/doble toque sobre la vista fija del plano
 │   └── useService.ts           # Wrappers tipados de callService por dominio
 │
 ├── areas/                      # Un componente por habitación; usan <AreaCard> + controles
@@ -223,6 +225,7 @@ Colores de acento fijos en Tailwind: `accent-blue`, `accent-green`, `accent-yell
 ### Plano 3D (panel aparte `mi-plano`, `dist/plano.js`)
 - Es otra entrada del menú lateral de HA, no una pestaña del dashboard: HA solo baja `plano.js` al abrir ese panel. En dev: `http://localhost:5173/plano.html`.
 - Por defecto la card muestra una **vista fija pre-renderizada** (`floorplan/StillView.tsx`, sin WebGL): una imagen base de día o de noche (según `sun.sun`; si no existe, según el tema) más una imagen por lámpara con solo lo que esa lámpara aporta, que se tiñe con su color y se suma en un canvas 2D. Los marcadores se ubican con `projectStill` (la misma cámara, `STILL`). El 3D interactivo (three.js) solo se crea al pulsar el botón **3D** (o con `?plano3d` en la URL) y se destruye al apagarlo. Persianas, cortinas y robot solo se mueven en el 3D.
+- Zoom de la vista fija (`hooks/usePanZoom.ts` + la matemática pura en `lib/pan-zoom.ts`): pellizco y arrastre con el dedo, rueda del mouse, doble toque (acerca ×2,5 o vuelve) y el botón "Ajustar", hasta `MAX_STILL_ZOOM` (×4). La vista vive en un ref: se aplica como `transform` a la capa de la imagen y `placeMarkers` la suma a la proyección, sin estado React por cuadro. La capa que toma los gestos tiene `touch-action: none` y en el 3D pasa a `pointer-events-none` (el 3D tiene su propia cámara). Un arrastre que empieza sobre un marcador captura el puntero, así que no lo abre; un toque sí.
 - Las imágenes de `floorplan/still/` las renderiza Blender (Cycles) a partir del mismo modelo: en dev, con el 3D activo (`/plano.html?plano3d`), `await __floorplanScene.exportGLB()` devuelve el GLB (cámara fija y lámparas con nombre incluidas) y `blender --background --factory-startup --python scripts/render_floorplan.py -- <glb> src/components/widgets/floorplan/still` genera `day.webp`, `night.webp` y `light-<device>.jpg`. **Hay que regenerarlas cada vez que cambie la geometría, los muebles, las texturas o la posición de una luz.**
 - Geometría en `src/floorplan.config.ts`, en metros: `x` a lo ancho, `y` a lo largo (0 = fondo del cuarto principal). El perímetro sale del plano de mensura; los tabiques, del mapa del robot. El archivo es personal (IDs de entidades y medidas reales) y está en `.gitignore`, igual que `dashboard.config.ts`: se parte de `src/floorplan.config.example.ts`. El runner lo toma del secret `FLOORPLAN_CONFIG_B64` (sin él despliega el apartamento de ejemplo): después de cambiar el archivo, `base64 -w0 src/floorplan.config.ts | gh secret set FLOORPLAN_CONFIG_B64`. Los tipos (`Room`, `Device`, `Furniture`, `Cove`) viven en `lib/floorplan.ts`.
 - El mapa del robot muestra el living ~0,8 m más ancho y con una "pata" hacia el pallier: es lidar que ve a través de la puerta/espejo, no piso real. El plano manda.
