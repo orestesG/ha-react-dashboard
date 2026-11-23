@@ -14,8 +14,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "home-assistant-js-websocket": "^9.8.1",
-    "lucide-react": "^1.75.0",
+    "home-assistant-js-websocket": "^9.9.0",
+    "lucide-react": "^1.77.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-grid-layout": "^2.3.0",
@@ -34,7 +34,7 @@
     "@types/react-grid-layout": "^2.1.0",
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.3.0",
-    "autoprefixer": "^10.6.2",
+    "autoprefixer": "^10.7.0",
     "cross-env": "^10.1.0",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
